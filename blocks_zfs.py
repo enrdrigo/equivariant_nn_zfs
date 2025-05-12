@@ -37,7 +37,7 @@ class NodeFeaturesStart(nn.Module):
 
     def forward(self,
                 node_attributes):
-
+        node_attributes = node_attributes.to(self.linear.weight.device)
         return self.linear(node_attributes)
 
 @compile_mode("script")
@@ -96,6 +96,12 @@ class RadialAngularEmbedding(nn.Module):
                 edge_attributes,
                 edge_index
                 ):
+        device = self.fcn[0].weight.device  # or self.linear.weight.device
+
+        lenght = lenght.to(device)
+        node_features = node_features.to(device)
+        edge_attributes = edge_attributes.to(device)
+        edge_index = edge_index.to(device)
 
         sender = edge_index[0]
 
@@ -138,6 +144,8 @@ class UpdateNodeAttributes_readoutl2(nn.Module):
     def forward(self,
                 message
                 ):
+         message = message.to(self.linear.weight.device)
+
          node_features = self.linear(message)
 
          readout = self.linear_readout(node_features)
