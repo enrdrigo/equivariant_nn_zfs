@@ -166,6 +166,10 @@ class SymmetricMatrixRegressor(nn.Module):
     def weighted_mse_loss(self, pred, target):
         # Extract upper triangle components (batch_size, 9)
 
+        device = pred.device  # Get the device of prediction
+
+        target = target.to(device)
+
         pred_flat = pred.view(pred.size(0), -1)
         target_flat = target.view(target.size(0), -1)
         weights = self.loss_weights.to(pred.device).unsqueeze(0)
