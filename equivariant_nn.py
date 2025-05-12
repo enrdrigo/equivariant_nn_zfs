@@ -143,6 +143,8 @@ class SymmetricMatrixRegressor(nn.Module):
 
         self.update_readout = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
 
+        #TODO: FIX THIS HARD IMPLEMENTATION OF THE IRREPS_NODE_FEAT
+
         self.radialemb2 = RadialAngularEmbedding(nbessel=nbessel,
                                                 zlist=zlist,
                                                 nchannels=nchannels,
