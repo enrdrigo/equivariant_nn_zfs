@@ -286,7 +286,7 @@ def plot_parity(true_values, predicted_values, labels):
     plt.show()
 
 if __name__ == "__main__":
-    db = read('../../../Tutorials/data/solvent_configs.xyz', ':')
+    db = read('../../../Tutorials/data/solvent_configs.xyz', ':100')
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
