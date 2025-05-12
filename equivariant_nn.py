@@ -17,7 +17,6 @@ from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttr
 
 # 1. Utility: Compute inertia tensor
 def compute_inertia_tensor(atoms):
-    print(atoms.info.keys())
     com = atoms.get_center_of_mass()
     positions = atoms.get_positions() - com
     masses = atoms.get_masses()
@@ -126,9 +125,12 @@ class SymmetricMatrixRegressor(nn.Module):
                           1,
                           1,
                           1
-                          ]
+                          ],
+                 device=None
                  ):
         super().__init__()
+        self.device = device if device is not None else torch.device('cpu')
+        self.to(self.device)
         self.node_features = NodeFeaturesStart(zlist=zlist,
                                                nchannels=nchannels
                                                )
@@ -164,32 +166,9 @@ class SymmetricMatrixRegressor(nn.Module):
     def weighted_mse_loss(self, pred, target):
         # Extract upper triangle components (batch_size, 9)
 
-        pred_flat = torch.stack([
-            pred[:, 0],
-            pred[:, 1],
-            pred[:, 2],
-            pred[:, 3],
-            pred[:, 4],
-            pred[:, 5],
-            pred[:, 6],
-            pred[:, 7],
-            pred[:, 8]
-        ], dim=1)
-
-        target_flat = torch.stack([
-            target[:, 0],
-            target[:, 1],
-            target[:, 2],
-            target[:, 3],
-            target[:, 4],
-            target[:, 5],
-            target[:, 6],
-            target[:, 7],
-            target[:, 8]
-        ], dim=1)
-
-        # Expand weights to match batch shape
-        weights = self.loss_weights.unsqueeze(0)
+        pred_flat = pred.view(pred.size(0), -1)
+        target_flat = target.view(target.size(0), -1)
+        weights = self.loss_weights.to(pred.device).unsqueeze(0)
         loss = weights * (pred_flat - target_flat) ** 2
         return loss.mean()
 
@@ -236,12 +215,19 @@ class SymmetricMatrixRegressor(nn.Module):
 
     # --- Training loop ---
     def NNtrain(self,
-              loader):
-
+              loader,
+                device=None
+                ):
+        device = device if device is not None else self.device
         print(self.count_parameters())
         for epoch in range(100):
             total_loss = 0
             for X, X_v, node_attr, edge_index, Y_true in loader:
+                Y_true = Y_true.to(device)
+                X = [x.to(device) for x in X]
+                X_v = [xv.to(device) for xv in X_v]
+                node_attr = [na.to(device) for na in node_attr]
+                edge_index = [ei.to(device) for ei in edge_index]
                 self.optimizer.zero_grad()  # Zeroing gradients
                 Y_pred = model(X, X_v, node_attr, edge_index)  # Forward pass
 
@@ -296,7 +282,7 @@ def plot_parity(true_values, predicted_values, labels):
     plt.show()
 
 if __name__ == "__main__":
-    db = read('../../Tutorials/data/solvent_configs.xyz', ':100')
+    db = read('../../../Tutorials/data/solvent_configs.xyz', ':')
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
@@ -336,6 +322,7 @@ if __name__ == "__main__":
                              collate_fn=collate_fn
                              )
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = SymmetricMatrixRegressor(nbessel = dataset.nbessel,
                                      zlist = dataset.z_table,
@@ -349,7 +336,8 @@ if __name__ == "__main__":
                                               1,
                                               1,
                                               1
-                                              ]
+                                              ],
+                                     device = device
                                      )
     model.NNtrain(loader=train_loader
                   )
