@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from e3nn import o3
-from e3nn.o3 import Linear, FullyConnectedTensorProduct
+from e3nn.o3 import Linear, FullTensorProduct
 from e3nn.nn import FullyConnectedNet
 from e3nn.o3 import TensorProduct
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
@@ -9,6 +9,8 @@ from e3nn.o3 import Irreps
 from mace.modules.irreps_tools import reshape_irreps
 from mace.tools.scatter import scatter_sum
 from e3nn.util.jit import compile_mode
+from typing import Union, Tuple, List
+from collections import defaultdict
 
 @compile_mode("script")
 class NodeFeaturesStart(nn.Module):
@@ -53,8 +55,6 @@ class RadialAngularEmbedding(nn.Module):
 
         self.node_attr_len = len(zlist)
 
-        irreps_in1=Irreps(f'{nbessel}x0e')
-
         irreps_sh = Irreps('0e + 1o +2e')
 
         target_irreps = (irreps_sh * nchannels).sort()[0].simplify()
@@ -73,9 +73,12 @@ class RadialAngularEmbedding(nn.Module):
                                      internal_weights=False
                                      )
 
+
+        irreps_in1=Irreps(f'{nbessel}x0e')
+
         self.fcn = FullyConnectedNet(
-            [irreps_in1.num_irreps, 10, self.conv_tp.weight_numel],
-            act=torch.nn.functional.leaky_relu
+            [irreps_in1.num_irreps, self.conv_tp.weight_numel],
+            act=torch.nn.functional.silu
         )
 
         self.irreps_out = target_irreps
@@ -99,8 +102,11 @@ class RadialAngularEmbedding(nn.Module):
         device = self.fcn[0].weight.device  # or self.linear.weight.device
 
         lenght = lenght.to(device)
+
         node_features = node_features.to(device)
+
         edge_attributes = edge_attributes.to(device)
+
         edge_index = edge_index.to(device)
 
         sender = edge_index[0]
@@ -152,4 +158,39 @@ class UpdateNodeAttributes_readoutl2(nn.Module):
 
 
          return (readout, node_features)
+
+@compile_mode("script")
+class ConvolveTensor3body(nn.Module):
+    def __init__(self,
+                 irreps_in1
+                 ):
+        super().__init__()
+
+        self.linear1 = Linear(irreps_in=irreps_in1, irreps_out=irreps_in1)
+
+        self.fctp1 = FullTensorProduct(irreps_in1=irreps_in1, irreps_in2=irreps_in1)
+
+        self.linear2 = Linear(irreps_in=self.fctp1.irreps_out, irreps_out=self.fctp1.irreps_out)
+
+        self.fctp2 = FullTensorProduct(irreps_in1=self.fctp1.irreps_out, irreps_in2=irreps_in1)
+
+        self.linear3 = Linear(irreps_in=self.fctp2.irreps_out, irreps_out=irreps_in1)
+    def forward(self,
+                node_feature_i
+                ):
+
+        iter1 = self.linear1(node_feature_i)
+
+        iter1_ = self.fctp1(iter1, iter1)
+
+        iter2 = self.linear2(iter1_)
+
+        iter2_ = self.fctp2(iter2, iter1)
+
+        iter3 = self.linear3(iter2_)
+
+        return iter3
+
+
+
 

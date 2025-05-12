@@ -13,24 +13,8 @@ from e3nn.o3 import Irreps
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
 from convert_matrix import cartesian_to_spherical_irreps
-from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributes_readoutl2
+from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributes_readoutl2, ConvolveTensor3body
 
-# 1. Utility: Compute inertia tensor
-def compute_inertia_tensor(atoms):
-    com = atoms.get_center_of_mass()
-    positions = atoms.get_positions() - com
-    masses = atoms.get_masses()
-    I = np.zeros((3, 3))
-    for r, m in zip(positions, masses):
-        I += m * (np.dot(r, r) * np.eye(3) - np.outer(r, r))
-
-    I = I - np.eye(3) * I.trace() / 3
-
-    I = torch.tensor(I)
-
-    I = cartesian_to_spherical_irreps(I)
-
-    return I
 
 # --- Dummy dataset (replace with your own structures and target matrices) ---
 class EquivariantMatrixDataset(Dataset):
@@ -41,14 +25,14 @@ class EquivariantMatrixDataset(Dataset):
                  Rcut
                  ):
         self.structures = structures
-        self.targets = np.array([compute_inertia_tensor(s) for s in structures])
-        self.pol_cut_num=pol_cut_num
-        self.nbessel=nbessel
-        self.Rcut=Rcut
+        self.targets = np.array([cartesian_to_spherical_irreps(s.info['target_L2'].reshape(3, 3)) for s in structures])
+        self.pol_cut_num = pol_cut_num
+        self.nbessel = nbessel
+        self.Rcut = Rcut
 
         z_table = set()
-        for struct in structures:
-            s_z_table = struct.get_atomic_numbers()
+        for s in structures:
+            s_z_table = s.get_atomic_numbers()
             z_table.update(s_z_table)
         self.z_table = tools.AtomicNumberTable(list(z_table))
 
@@ -83,6 +67,7 @@ class EquivariantMatrixDataset(Dataset):
         self.node_attr_len = vectors.shape[0]
 
         cutoff = PolynomialCutoff(r_max=self.Rcut, p=self.pol_cut_num)
+
         bf = BesselBasis(r_max=self.Rcut, num_basis=self.nbessel)
 
         irreps_sh = Irreps('0e + 1o +2e')
@@ -143,6 +128,8 @@ class SymmetricMatrixRegressor(nn.Module):
                                                 irreps_node_feat=Irreps(f'{nchannels}x0e')
                                                 )
 
+        self.prod = ConvolveTensor3body(irreps_in1=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify())
+
         self.update_readout = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
 
         #TODO: FIX THIS HARD IMPLEMENTATION OF THE IRREPS_NODE_FEAT
@@ -153,11 +140,13 @@ class SymmetricMatrixRegressor(nn.Module):
                                                  irreps_node_feat=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify()
                                                 )
 
+        self.prod2 = ConvolveTensor3body(irreps_in1=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify())
+
         self.update_readout2 = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=1e-2, weight_decay=5e-7,)
+        self.optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=5e-7,)
 
-        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.94) #ReduceLROnPlateau(self.optimizer, mode='min', patience=5, factor=0.5)
+        #self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.999) #ReduceLROnPlateau(self.optimizer, mode='min', patience=5, factor=0.5)
 
         self.loss_weights = torch.tensor(weights)
         self.loss_fn = self.weighted_mse_loss
@@ -173,8 +162,20 @@ class SymmetricMatrixRegressor(nn.Module):
         pred_flat = pred.view(pred.size(0), -1)
         target_flat = target.view(target.size(0), -1)
         weights = self.loss_weights.to(pred.device).unsqueeze(0)
-        loss = weights * (pred_flat - target_flat) ** 2
+        loss = weights * ((pred_flat - target_flat) ** 2).mean(axis=0)
         return loss.mean()
+
+    def weighted_mse_loss_xcomponent(self, pred, target):
+        # Extract upper triangle components (batch_size, 9)
+
+        device = pred.device  # Get the device of prediction
+
+        target = target.to(device)
+
+        pred_flat = pred.view(pred.size(0), -1)
+        target_flat = target.view(target.size(0), -1)
+        loss = ((pred_flat - target_flat) ** 2)
+        return loss
 
 
 
@@ -198,16 +199,19 @@ class SymmetricMatrixRegressor(nn.Module):
                                      edge_index_b
                                      )
 
-            readout1, updated_node_features = self.update_readout(message1)
+            prod1 = self.prod(message1)
 
+            readout1, node_features1 = self.update_readout(prod1)
 
             message2 = self.radialemb2(lenght_b,
-                                     updated_node_features,
+                                     node_features1,
                                      edge_attr_b,
                                      edge_index_b
                                      )
 
-            readout2, _ = self.update_readout2(message2)
+            prod2 = self.prod(message2)
+
+            readout2, _ = self.update_readout2(prod2)
 
             total_readout = readout1.sum(dim=0) + readout2.sum(dim=0)
 
@@ -218,44 +222,51 @@ class SymmetricMatrixRegressor(nn.Module):
 
 
     # --- Training loop ---
-    def NNtrain(self,
-              loader,
-                device=None
-                ):
-        device = device if device is not None else self.device
-        print(self.count_parameters())
-        for epoch in range(100):
-            total_loss = 0
-            for X, X_v, node_attr, edge_index, Y_true in loader:
-                Y_true = Y_true.to(device)
-                X = [x.to(device) for x in X]
-                X_v = [xv.to(device) for xv in X_v]
-                node_attr = [na.to(device) for na in node_attr]
-                edge_index = [ei.to(device) for ei in edge_index]
-                self.optimizer.zero_grad()  # Zeroing gradients
-                Y_pred = model(X, X_v, node_attr, edge_index)  # Forward pass
+def NNtrain(model,
+          loader,
+            device=None
+            ):
+    device = device if device is not None else model.device
+    print(model.count_parameters())
+    error=[]
+    for epoch in range(1000):
+        total_loss = 0
+        for X, X_v, node_attr, edge_index, Y_true in loader:
+            model.optimizer.zero_grad()  # Zeroing gradients
+            Y_true = Y_true.to(device)
+            X = [x.to(device) for x in X]
+            X_v = [xv.to(device) for xv in X_v]
+            node_attr = [na.to(device) for na in node_attr]
+            edge_index = [ei.to(device) for ei in edge_index]
 
-                loss = model.loss_fn(Y_pred, Y_true)  # Loss calculation
-                loss.backward()  # Backpropagation
-                # for name, param in model.named_parameters():
-                #     if param.grad is not None:
-                #         print(
-                #             f"{name}: grad mean = {param.grad.mean():.6e}, std = {param.grad.std():.6e}, max = {param.grad.max():.6e}")
-                #     else:
-                #         print(f"{name}: grad is None")
-                #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1e4)
-                self.optimizer.step()  # Update weights
-                total_loss += loss.item()
+            Y_pred = model(X, X_v, node_attr, edge_index)  # Forward pass
 
+            loss = model.loss_fn(Y_pred, Y_true)  # Loss calculation
+            loss.backward()# Backpropagation
+            loss_xcomponent = model.weighted_mse_loss_xcomponent(Y_pred, Y_true)
+            error.append(loss_xcomponent.mean(axis=0).tolist())
+            print(loss_xcomponent.mean(axis=0).tolist())
+
+            model.optimizer.step()  # Update weights
+            total_loss += loss.item()
 
 
-            # --- Validation Phase ---
-            self.scheduler.step()
-            for param_group in self.optimizer.param_groups:
-                print(f"LR: {param_group['lr']}")
 
-            print(f"Epoch {epoch+1}: Loss = {total_loss / len(loader):.4f}")
+        # --- Validation Phase ---
+        #model.scheduler.step()
+        for param_group in model.optimizer.param_groups:
+            print(f"LR: {param_group['lr']}")
 
+        print(f"Epoch {epoch+1}: Loss = {total_loss / len(loader):.4f}")
+    fig, axes = plt.subplots(3, 3, figsize=(9, 9))
+    axes = axes.ravel()  # Flatten the 2D array of axes
+
+    for i in range(9):
+        ax = axes[i]
+
+        ax.plot( np.array(error)[:, i], '.', color='b')
+
+    plt.show()
 
 def plot_parity(true_values, predicted_values, labels):
     """
@@ -286,11 +297,11 @@ def plot_parity(true_values, predicted_values, labels):
     plt.show()
 
 if __name__ == "__main__":
-    db = read('../../../Tutorials/data/solvent_configs.xyz', ':100')
+    db = read('dataset_pol_L2.extxyz', ':200')
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
-                                       nbessel=15,
+                                       nbessel=8,
                                        Rcut=5.0
                                        )
 
@@ -316,7 +327,7 @@ if __name__ == "__main__":
 
 
     train_loader = DataLoader(train_data,
-                              batch_size=10,
+                              batch_size=50,
                               shuffle=True,
                               collate_fn=collate_fn
                               )
@@ -328,23 +339,24 @@ if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    model = SymmetricMatrixRegressor(nbessel = dataset.nbessel,
-                                     zlist = dataset.z_table,
-                                     nchannels=4,
-                                     weights=[0.001,
-                                              0.001,
-                                              0.001,
-                                              0.001,
+    model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
+                                     zlist=dataset.z_table,
+                                     nchannels=2,
+                                     weights=[0,
+                                              0,
+                                              0,
+                                              0,
                                               1,
                                               1,
                                               1,
                                               1,
                                               1
                                               ],
-                                     device = device
+                                     device=device
                                      )
-    model.NNtrain(loader=train_loader
-                  )
+    NNtrain(model=model,
+            loader=train_loader
+            )
     model.eval()
     errors = []
     # Extracting true and predicted inertia tensor components
