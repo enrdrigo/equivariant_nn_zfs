@@ -144,7 +144,7 @@ class SymmetricMatrixRegressor(nn.Module):
 
         self.update_readout2 = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=5e-7,)
+        self.optimizer = optim.AdamW(self.parameters(), lr=1e-2, weight_decay=5e-7,)
 
         #self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.999) #ReduceLROnPlateau(self.optimizer, mode='min', patience=5, factor=0.5)
 
@@ -229,7 +229,7 @@ def NNtrain(model,
     device = device if device is not None else model.device
     print(model.count_parameters())
     error=[]
-    for epoch in range(1000):
+    for epoch in range(100):
         total_loss = 0
         for X, X_v, node_attr, edge_index, Y_true in loader:
             model.optimizer.zero_grad()  # Zeroing gradients
@@ -245,7 +245,7 @@ def NNtrain(model,
             loss.backward()# Backpropagation
             loss_xcomponent = model.weighted_mse_loss_xcomponent(Y_pred, Y_true)
             error.append(loss_xcomponent.mean(axis=0).tolist())
-            print(loss_xcomponent.mean(axis=0).tolist())
+            #print(loss_xcomponent.mean(axis=0).tolist())
 
             model.optimizer.step()  # Update weights
             total_loss += loss.item()
@@ -297,7 +297,7 @@ def plot_parity(true_values, predicted_values, labels):
     plt.show()
 
 if __name__ == "__main__":
-    db = read('dataset_pol_L2.extxyz', ':200')
+    db = read('dataset_pol_L2.extxyz', ':100')
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
 
     train_loader = DataLoader(train_data,
-                              batch_size=50,
+                              batch_size=10,
                               shuffle=True,
                               collate_fn=collate_fn
                               )

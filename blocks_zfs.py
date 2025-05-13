@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from e3nn import o3
-from e3nn.o3 import Linear, FullTensorProduct
+from e3nn.o3 import Linear, FullTensorProduct, FullyConnectedTensorProduct
 from e3nn.nn import FullyConnectedNet
 from e3nn.o3 import TensorProduct
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
@@ -77,7 +77,7 @@ class RadialAngularEmbedding(nn.Module):
         irreps_in1=Irreps(f'{nbessel}x0e')
 
         self.fcn = FullyConnectedNet(
-            [irreps_in1.num_irreps, self.conv_tp.weight_numel],
+            [irreps_in1.num_irreps, 6, 6, 6, self.conv_tp.weight_numel],
             act=torch.nn.functional.silu
         )
 
@@ -168,28 +168,40 @@ class ConvolveTensor3body(nn.Module):
 
         self.linear1 = Linear(irreps_in=irreps_in1, irreps_out=irreps_in1)
 
+        self.linear2 = Linear(irreps_in=irreps_in1, irreps_out=irreps_in1)
+
+        self.linear3 = Linear(irreps_in=irreps_in1, irreps_out=irreps_in1)
+
         self.fctp1 = FullTensorProduct(irreps_in1=irreps_in1, irreps_in2=irreps_in1)
 
-        self.linear2 = Linear(irreps_in=self.fctp1.irreps_out, irreps_out=self.fctp1.irreps_out)
+        self.fctp2 = FullTensorProduct(irreps_in1=self.fctp1.irreps_out,
+                                       irreps_in2=irreps_in1,
+                                       filter_ir_out=[ir for mul, ir in irreps_in1],
 
-        self.fctp2 = FullTensorProduct(irreps_in1=self.fctp1.irreps_out, irreps_in2=irreps_in1)
+                                       )
 
-        self.linear3 = Linear(irreps_in=self.fctp2.irreps_out, irreps_out=irreps_in1)
+        self.linear4 = Linear(irreps_in=self.fctp2.irreps_out, irreps_out=irreps_in1)
+
+
+
     def forward(self,
                 node_feature_i
                 ):
 
-        iter1 = self.linear1(node_feature_i)
+        self.nonlinearity = torch.nn.functional.silu
 
-        iter1_ = self.fctp1(iter1, iter1)
+        node1 = self.nonlinearity(self.linear1(node_feature_i))
 
-        iter2 = self.linear2(iter1_)
+        node2 = self.nonlinearity(self.linear2(node_feature_i))
 
-        iter2_ = self.fctp2(iter2, iter1)
+        iter2 = self.fctp1(node1, node2)
 
-        iter3 = self.linear3(iter2_)
+        node3 = self.nonlinearity(self.linear3(node_feature_i))
 
-        return iter3
+        iter3 = self.fctp2(iter2, node3)
+
+
+        return self.linear4(iter3)
 
 
 
