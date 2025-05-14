@@ -13,7 +13,7 @@ from e3nn.o3 import Irreps
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
 from convert_matrix import cartesian_to_spherical_irreps
-from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributes_readoutl2, ConvolveTensor3body
+from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributesReadoutL2, ConvolveTensor3body, NewNodeFeaturesFrom3Body
 
 
 # --- Dummy dataset (replace with your own structures and target matrices) ---
@@ -22,13 +22,15 @@ class EquivariantMatrixDataset(Dataset):
                  structures,
                  pol_cut_num,
                  nbessel,
-                 Rcut
+                 Rcut,
+                 irreps_sh
                  ):
         self.structures = structures
         self.targets = np.array([cartesian_to_spherical_irreps(s.info['target_L2'].reshape(3, 3)) for s in structures])
         self.pol_cut_num = pol_cut_num
         self.nbessel = nbessel
         self.Rcut = Rcut
+        self.irreps_sh = irreps_sh
 
         z_table = set()
         for s in structures:
@@ -70,9 +72,7 @@ class EquivariantMatrixDataset(Dataset):
 
         bf = BesselBasis(r_max=self.Rcut, num_basis=self.nbessel)
 
-        irreps_sh = Irreps('0e + 1o +2e')
-
-        spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=irreps_sh, normalize=True)
+        spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=self.irreps_sh, normalize=True)
 
         vector_descriptor = spherical_harmonics(vectors)
 
@@ -87,13 +87,13 @@ def collate_fn(batch):
     """
     Custom collate function to handle variable-length descriptors in the batch.
     """
-    vectors, lengths, node_attr, edge_index, targets = zip(*batch)
+    vectors, lengths, nodeattr, edgeindex, targets = zip(*batch)
 
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
     targets = torch.stack(targets)
 
-    return list(vectors), list(lengths), list(node_attr), list(edge_index), targets
+    return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
 # --- Symmetric Matrix Regressor ---
 class SymmetricMatrixRegressor(nn.Module):
@@ -101,56 +101,77 @@ class SymmetricMatrixRegressor(nn.Module):
                  nbessel,
                  zlist,
                  nchannels,
-                 weights=[1,
-                          1,
-                          1,
-                          1,
-                          1,
-                          1,
-                          1,
-                          1,
-                          1
-                          ],
-                 device=None
+                 irreps_sh,
+                 weights,
+                 device = None
                  ):
         super().__init__()
         self.device = device if device is not None else torch.device('cpu')
         self.to(self.device)
-        self.node_features = NodeFeaturesStart(zlist=zlist,
-                                               nchannels=nchannels
+
+        node_attr_len = len(zlist)
+
+        node_attr_irreps = o3.Irreps([(node_attr_len, (0, 1))])
+
+        node_feat_irreps_start = o3.Irreps(f"{nchannels}x0e")
+
+        hidden_irreps = (irreps_sh * nchannels).sort()[0].simplify()
+
+        self.node_features = NodeFeaturesStart(node_attr_irreps=node_attr_irreps,
+                                               node_feat_irreps=node_feat_irreps_start
                                                )
 
+        self.radialemb = nn.ModuleList()
+        self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
+                                                     nchannels=nchannels,
+                                                     node_feat_irreps=node_feat_irreps_start,
+                                                     irreps_sh=irreps_sh
+                                                     )
+                              )
+        self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
+                                                     nchannels=nchannels,
+                                                     node_feat_irreps=hidden_irreps,
+                                                     irreps_sh=irreps_sh
+                                                     )
+                              )
 
+        self.prod = nn.ModuleList()
+        self.prod.append(ConvolveTensor3body(irreps_sh=irreps_sh,
+                                             nchannels=nchannels
+                                             )
+                         )
+        self.prod.append(ConvolveTensor3body(irreps_sh=irreps_sh,
+                                             nchannels=nchannels
+                                             )
+                         )
 
-        self.radialemb = RadialAngularEmbedding(nbessel=nbessel,
-                                                zlist=zlist,
-                                                nchannels=nchannels,
-                                                irreps_node_feat=Irreps(f'{nchannels}x0e')
-                                                )
+        self.nbodyfeatures = nn.ModuleList()
+        self.nbodyfeatures.append(NewNodeFeaturesFrom3Body(irreps_sh=irreps_sh,
+                                                           node_attr_irreps=node_attr_irreps,
+                                                           hidden_irreps=hidden_irreps,
+                                                           )
+                                  )
+        self.nbodyfeatures.append(NewNodeFeaturesFrom3Body(irreps_sh=irreps_sh,
+                                                           node_attr_irreps=node_attr_irreps,
+                                                           hidden_irreps=hidden_irreps,
+                                                           )
+                                  )
 
-        self.prod = ConvolveTensor3body(irreps_in1=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify())
+        self.update_readout = nn.ModuleList()
+        self.update_readout.append(UpdateNodeAttributesReadoutL2(hidden_irreps=hidden_irreps,
+                                                                 node_attr_irreps=node_attr_irreps
+                                                                 )
+                                   )
+        self.update_readout.append(UpdateNodeAttributesReadoutL2(hidden_irreps=hidden_irreps,
+                                                                 node_attr_irreps=node_attr_irreps
+                                                                )
+                                   )
 
-        self.update_readout = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
-
-        #TODO: FIX THIS HARD IMPLEMENTATION OF THE IRREPS_NODE_FEAT
-
-        self.radialemb2 = RadialAngularEmbedding(nbessel=nbessel,
-                                                zlist=zlist,
-                                                nchannels=nchannels,
-                                                 irreps_node_feat=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify()
-                                                )
-
-        self.prod2 = ConvolveTensor3body(irreps_in1=(Irreps('0e + 1o + 2e') * nchannels).sort()[0].simplify())
-
-        self.update_readout2 = UpdateNodeAttributes_readoutl2(nchannels=nchannels)
-
-        self.optimizer = optim.AdamW(self.parameters(), lr=1e-2, weight_decay=5e-7,)
-
-        #self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.999) #ReduceLROnPlateau(self.optimizer, mode='min', patience=5, factor=0.5)
+        self.optimizer = optim.AdamW(self.parameters(), lr=1e-2, weight_decay=5e-7)
 
         self.loss_weights = torch.tensor(weights)
-        self.loss_fn = self.weighted_mse_loss
 
+        self.loss_fn = self.weighted_mse_loss
 
     def weighted_mse_loss(self, pred, target):
         # Extract upper triangle components (batch_size, 9)
@@ -182,36 +203,33 @@ class SymmetricMatrixRegressor(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-
-
     def forward(self, x, x_v, node_attr, edge_index):
         outputs = []
 
         for idx, (lenght_b, edge_attr_b, node_attr_b, edge_index_b) in enumerate(zip(x, x_v, node_attr, edge_index)):
             node_attr_b = node_attr_b.detach().requires_grad_()
 
-
             node_features_initial = self.node_features(node_attr_b)
 
-            message1 = self.radialemb(lenght_b,
-                                     node_features_initial,
-                                     edge_attr_b,
-                                     edge_index_b
-                                     )
+            message1 = self.radialemb[0](lenght_b,
+                                         node_features_initial,
+                                         edge_attr_b,
+                                         edge_index_b
+                                         )
 
-            prod1 = self.prod(message1)
+            prod1 = self.prod[0](message1)
 
-            readout1, node_features1 = self.update_readout(prod1)
+            readout1, node_features1 = self.update_readout[0](message1, prod1)
 
-            message2 = self.radialemb2(lenght_b,
-                                     node_features1,
-                                     edge_attr_b,
-                                     edge_index_b
-                                     )
+            message2 = self.radialemb[1](lenght_b,
+                                         node_features1,
+                                         edge_attr_b,
+                                         edge_index_b
+                                         )
 
-            prod2 = self.prod(message2)
+            prod2 = self.prod[1](message2)
 
-            readout2, _ = self.update_readout2(prod2)
+            readout2, _ = self.update_readout[2](message2, prod2)
 
             total_readout = readout1.sum(dim=0) + readout2.sum(dim=0)
 
@@ -221,7 +239,7 @@ class SymmetricMatrixRegressor(nn.Module):
         return torch.stack(outputs, dim=0)
 
 
-    # --- Training loop ---
+#  --- Training loop ---
 def NNtrain(model,
           loader,
             device=None
@@ -245,7 +263,6 @@ def NNtrain(model,
             loss.backward()# Backpropagation
             loss_xcomponent = model.weighted_mse_loss_xcomponent(Y_pred, Y_true)
             error.append(loss_xcomponent.mean(axis=0).tolist())
-            #print(loss_xcomponent.mean(axis=0).tolist())
 
             model.optimizer.step()  # Update weights
             total_loss += loss.item()
@@ -302,7 +319,8 @@ if __name__ == "__main__":
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
                                        nbessel=8,
-                                       Rcut=5.0
+                                       Rcut=5.0,
+                                       irreps_sh=Irreps('0e + 1o + 2e + 3o')
                                        )
 
 
@@ -352,7 +370,8 @@ if __name__ == "__main__":
                                               1,
                                               1
                                               ],
-                                     device=device
+                                     device=device,
+                                     irreps_sh=dataset.irreps_sh
                                      )
     NNtrain(model=model,
             loader=train_loader
