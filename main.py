@@ -37,18 +37,21 @@ if __name__ == "__main__":
                         )
 
     total_size = len(dataset)
-    train_ratio = 0.9
+    train_ratio = 0.8
+    validation_ratio = 0.1
     test_ratio = 0.1
 
     # Calculate split sizes
     train_size = int(train_ratio * total_size)
 
-    test_size = total_size - train_size # ensures all data is used
+    validation_size = int(validation_ratio * total_size)
+
+    test_size = total_size - train_size - validation_size# ensures all data is used
 
     # Randomly split
-    train_data, test_data = random_split(dataset,
-                                         [train_size, test_size]
-                                         )
+    train_data, test_data, validation_data = random_split(dataset,
+                                                          [train_size, test_size, validation_size]
+                                                          )
 
     train_loader = DataLoader(train_data,
                               batch_size=10,
@@ -60,6 +63,11 @@ if __name__ == "__main__":
                              batch_size=1,
                              collate_fn=collate_fn
                              )
+
+    validation_loader = DataLoader(validation_data,
+                                   batch_size=1,
+                                   collate_fn=collate_fn
+                                   )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -80,7 +88,8 @@ if __name__ == "__main__":
                                      irreps_sh=dataset.irreps_sh
                                      )
     nntrain(model=model,
-            loader=train_loader
+            loader=train_loader,
+            val_loader=validation_loader
             )
     model.eval()
     errors = []

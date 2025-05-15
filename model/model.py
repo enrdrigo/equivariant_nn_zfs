@@ -81,7 +81,10 @@ class SymmetricMatrixRegressor(nn.Module):
                                                                 )
                                    )
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=5e-7)
+        self.optimizer = optim.AdamW(self.parameters(), lr=5e-3, weight_decay=5e-7)
+
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', threshold=1e-3,
+                                                         factor=0.9, patience=2)
 
         self.loss_weights = torch.tensor(weights)
 

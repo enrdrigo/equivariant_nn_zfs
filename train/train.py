@@ -1,9 +1,32 @@
+import torch
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+def validate(model, val_loader, device):
+    model.eval()
+    total_loss = 0
+    with torch.no_grad():
+        for X, X_v, node_attr, edge_index, Y_true in val_loader:
+
+            Y_true = Y_true.to(device)
+            X = [x.to(device) for x in X]
+            X_v = [xv.to(device) for xv in X_v]
+            node_attr = [na.to(device) for na in node_attr]
+            edge_index = [ei.to(device) for ei in edge_index]
+
+            Y_pred = model(X, X_v, node_attr, edge_index)  # Forward pass
+
+            loss = model.loss_fn(Y_pred, Y_true)  # Loss calculation
+            total_loss += loss.item()
+
+    avg_loss = total_loss / len(val_loader)
+    return avg_loss
+
 def nntrain(model,
             loader,
+            val_loader,
             device=None
             ):
     device = device if device is not None else model.device
@@ -37,6 +60,9 @@ def nntrain(model,
 
             model.optimizer.step()  # Update weights
             total_loss += loss.item()
+
+        val_loss = validate(model, val_loader, device)
+        model.scheduler.step(val_loss)
         for param_group in model.optimizer.param_groups:
             print(f"LR: {param_group['lr']}")
 
