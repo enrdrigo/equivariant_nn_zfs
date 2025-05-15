@@ -3,7 +3,6 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 import numpy as np
-import matplotlib.pyplot as plt
 from ase.io import read
 from mace import data, modules, tools
 from e3nn import o3
@@ -12,8 +11,9 @@ from e3nn.o3 import SphericalHarmonics
 from e3nn.o3 import Irreps
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
-from convert_matrix import cartesian_to_spherical_irreps
-from blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributesReadoutL2, ConvolveTensor3body, NewNodeFeaturesFrom3Body
+from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
+from equivariant_nn_zfs.tools.blocks_zfs import NodeFeaturesStart, RadialAngularEmbedding, UpdateNodeAttributesReadoutL2, ConvolveTensor3body, NewNodeFeaturesFrom3Body
+from collections import defaultdict
 
 
 # --- Dummy dataset (replace with your own structures and target matrices) ---
@@ -22,14 +22,14 @@ class EquivariantMatrixDataset(Dataset):
                  structures,
                  pol_cut_num,
                  nbessel,
-                 Rcut,
+                 rcut,
                  irreps_sh
                  ):
         self.structures = structures
         self.targets = np.array([cartesian_to_spherical_irreps(s.info['target_L2'].reshape(3, 3)) for s in structures])
         self.pol_cut_num = pol_cut_num
         self.nbessel = nbessel
-        self.Rcut = Rcut
+        self.rcut = rcut
         self.irreps_sh = irreps_sh
 
         z_table = set()
@@ -41,10 +41,8 @@ class EquivariantMatrixDataset(Dataset):
     def __len__(self):
         return len(self.structures)
 
-
     def __getitem__(self, idx):
         self.struct = self.structures[idx]
-
 
         config = data.Configuration(
             atomic_numbers=self.struct.numbers,
@@ -54,7 +52,7 @@ class EquivariantMatrixDataset(Dataset):
         )
 
         # we handle configurations using the AtomicData class
-        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.Rcut)
+        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.rcut)
 
         vectors, lengths = modules.utils.get_edge_vectors_and_lengths(
             positions=batch["positions"],
@@ -68,9 +66,9 @@ class EquivariantMatrixDataset(Dataset):
 
         self.node_attr_len = vectors.shape[0]
 
-        cutoff = PolynomialCutoff(r_max=self.Rcut, p=self.pol_cut_num)
+        cutoff = PolynomialCutoff(r_max=self.rcut, p=self.pol_cut_num)
 
-        bf = BesselBasis(r_max=self.Rcut, num_basis=self.nbessel)
+        bf = BesselBasis(r_max=self.rcut, num_basis=self.nbessel)
 
         spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=self.irreps_sh, normalize=True)
 
@@ -94,6 +92,7 @@ def collate_fn(batch):
     targets = torch.stack(targets)
 
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
+
 
 # --- Symmetric Matrix Regressor ---
 class SymmetricMatrixRegressor(nn.Module):
@@ -175,7 +174,10 @@ class SymmetricMatrixRegressor(nn.Module):
 
         self.loss_fn = self.weighted_mse_loss
 
-    def weighted_mse_loss(self, pred, target):
+    def weighted_mse_loss(self,
+                          pred,
+                          target
+                          ):
         # Extract upper triangle components (batch_size, 9)
 
         device = pred.device  # Get the device of prediction
@@ -188,7 +190,10 @@ class SymmetricMatrixRegressor(nn.Module):
         loss = weights * ((pred_flat - target_flat) ** 2).mean(axis=0)
         return loss.mean()
 
-    def weighted_mse_loss_xcomponent(self, pred, target):
+    def weighted_mse_loss_xcomponent(self,
+                                     pred,
+                                     target
+                                     ):
         # Extract upper triangle components (batch_size, 9)
 
         device = pred.device  # Get the device of prediction
@@ -200,12 +205,15 @@ class SymmetricMatrixRegressor(nn.Module):
         loss = ((pred_flat - target_flat) ** 2)
         return loss
 
-
-
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-    def forward(self, x, x_v, node_attr, edge_index):
+    def forward(self,
+                x,
+                x_v,
+                node_attr,
+                edge_index
+                ):
         outputs = []
 
         for idx, (lenght_b, edge_attr_b, node_attr_b, edge_index_b) in enumerate(zip(x, x_v, node_attr, edge_index)):
@@ -243,11 +251,11 @@ class SymmetricMatrixRegressor(nn.Module):
 
         # Stack to form final output tensor
         return torch.stack(outputs, dim=0)
-
-from collections import defaultdict
 #  --- Training loop ---
-def NNtrain(model,
-          loader,
+
+
+def nntrain(model,
+            loader,
             device=None
             ):
     device = device if device is not None else model.device
@@ -333,7 +341,7 @@ if __name__ == "__main__":
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
                                        nbessel=8,
-                                       Rcut=5.0,
+                                       rcut=5.0,
                                        irreps_sh=Irreps('0e + 1o + 2e + 3o')
                                        )
 
@@ -357,9 +365,8 @@ if __name__ == "__main__":
                                          [train_size, test_size]
                                          )
 
-
     train_loader = DataLoader(train_data,
-                              batch_size=1,
+                              batch_size=10,
                               shuffle=True,
                               collate_fn=collate_fn
                               )
@@ -387,32 +394,32 @@ if __name__ == "__main__":
                                      device=device,
                                      irreps_sh=dataset.irreps_sh
                                      )
-    NNtrain(model=model,
+    nntrain(model=model,
             loader=train_loader
             )
     model.eval()
     errors = []
     # Extracting true and predicted inertia tensor components
-    true_inertia = []
-    pred_inertia = []
+    true = []
+    pred = []
     print("\nEvaluating on test set:")
     with torch.no_grad():
         for X, X_v, node_attr, edge_index,  Y_true in test_loader:
             Y_pred = model(X, X_v, node_attr, edge_index)
             mse = model.loss_fn(Y_pred, Y_true).item()
             errors.append(mse)
-            true_inertia.append(Y_true.view(-1).numpy())  # Convert to numpy array
-            pred_inertia.append(Y_pred.view(-1).numpy())  # Convert to numpy array
+            true.append(Y_true.view(-1).numpy())  # Convert to numpy array
+            pred.append(Y_pred.view(-1).numpy())  # Convert to numpy array
 
     mean_mse = np.mean(errors)
     print(f"Test Mean Squared Error (MSE): {mean_mse:.6f}")
 
-    true_inertia = np.array(true_inertia)  # Remove unnecessary dimensions
-    pred_inertia = np.array(pred_inertia)  # Remove unnecessary dimensions
-
+    true = np.array(true)  # Remove unnecessary dimensions
+    pred = np.array(pred)  # Remove unnecessary dimensions
 
     # Labels for each component of the inertia tensor
-    labels = ['xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz']
+    labels = [r'$Y^0_0$', r'$Y^1_{-1}$', r'$Y^1_0$', r'$Y^1_1$',
+              r'$Y^2_{-2}$', r'$Y^2_{-1}$', r'$Y^2_0$', r'$Y^2_1$', r'$Y^2_1$']
 
     # Generate the parity plot
-    plot_parity(true_inertia, pred_inertia, labels)
+    plot_parity(true, pred, labels)
