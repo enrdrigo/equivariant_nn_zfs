@@ -51,7 +51,7 @@ if __name__ == "__main__":
                                          )
 
     train_loader = DataLoader(train_data,
-                              batch_size=1,
+                              batch_size=10,
                               shuffle=True,
                               collate_fn=collate_fn
                               )

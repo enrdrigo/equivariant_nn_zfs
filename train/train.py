@@ -17,7 +17,7 @@ def nntrain(model,
 
     print(model.count_parameters())
     error = []
-    for epoch in range(4):
+    for epoch in range(10):
         total_loss = 0
         for X, X_v, node_attr, edge_index, Y_true in loader:
 
@@ -55,3 +55,4 @@ def nntrain(model,
         ax.set_yscale('log')
 
     plt.tight_layout()
+    plt.show()
