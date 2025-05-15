@@ -15,6 +15,7 @@ class SymmetricMatrixRegressor(nn.Module):
                  nchannels,
                  irreps_sh,
                  weights,
+                 lr,
                  device = None
                  ):
         super().__init__()
@@ -81,10 +82,10 @@ class SymmetricMatrixRegressor(nn.Module):
                                                                 )
                                    )
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=5e-3, weight_decay=5e-7)
+        self.optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=5e-7)
 
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', threshold=1e-3,
-                                                         factor=0.9, patience=2)
+                                                              factor=0.7, patience=0)
 
         self.loss_weights = torch.tensor(weights)
 
@@ -106,7 +107,7 @@ class SymmetricMatrixRegressor(nn.Module):
         loss = weights * ((pred_flat - target_flat) ** 2).mean(axis=0)
         return loss.mean()
 
-    def weighted_mse_loss_xcomponent(self,
+    def mse_loss_xcomponent(self,
                                      pred,
                                      target
                                      ):
@@ -118,7 +119,7 @@ class SymmetricMatrixRegressor(nn.Module):
 
         pred_flat = pred.view(pred.size(0), -1)
         target_flat = target.view(target.size(0), -1)
-        loss = ((pred_flat - target_flat) ** 2)
+        loss =  ((pred_flat - target_flat) ** 2)
         return loss
 
     def count_parameters(self):

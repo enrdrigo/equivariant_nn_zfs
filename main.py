@@ -23,6 +23,14 @@ def collate_fn(batch):
 if __name__ == "__main__":
     db = read('dataset_pol_L2.extxyz', ':500')
 
+    batch_size = 1
+
+    NEPOCHS = 20
+
+    nchannels = 2
+
+    lr = 1e-1
+
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
                                        nbessel=8,
@@ -38,8 +46,7 @@ if __name__ == "__main__":
 
     total_size = len(dataset)
     train_ratio = 0.8
-    validation_ratio = 0.1
-    test_ratio = 0.1
+    validation_ratio = 0.05
 
     # Calculate split sizes
     train_size = int(train_ratio * total_size)
@@ -54,18 +61,18 @@ if __name__ == "__main__":
                                                           )
 
     train_loader = DataLoader(train_data,
-                              batch_size=10,
+                              batch_size=batch_size,
                               shuffle=True,
                               collate_fn=collate_fn
                               )
 
     test_loader = DataLoader(test_data,
-                             batch_size=1,
+                             batch_size=batch_size,
                              collate_fn=collate_fn
                              )
 
     validation_loader = DataLoader(validation_data,
-                                   batch_size=1,
+                                   batch_size=batch_size,
                                    collate_fn=collate_fn
                                    )
 
@@ -73,7 +80,8 @@ if __name__ == "__main__":
 
     model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
                                      zlist=dataset.z_table,
-                                     nchannels=2,
+                                     nchannels=nchannels,
+                                     lr=lr,
                                      weights=[1,
                                               1,
                                               1,
@@ -89,7 +97,8 @@ if __name__ == "__main__":
                                      )
     nntrain(model=model,
             loader=train_loader,
-            val_loader=validation_loader
+            val_loader=validation_loader,
+            NEPOCHS=NEPOCHS
             )
     model.eval()
     errors = []
