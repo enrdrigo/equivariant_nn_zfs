@@ -37,11 +37,10 @@ class RadialAngularEmbedding(nn.Module):
                  nbessel,
                  nchannels,
                  node_feat_irreps,
-                 irreps_sh
+                 irreps_sh,
+                 hidden_irreps
                  ):
         super().__init__()
-
-        hidden_irreps = (irreps_sh * nchannels).sort()[0].simplify()
 
         irreps_mid, instructions = tp_out_irreps_with_instructions(
             node_feat_irreps,
@@ -58,9 +57,10 @@ class RadialAngularEmbedding(nn.Module):
                                      )
 
         irreps_in1 = Irreps(f'{nbessel}x0e')
+        print(self.conv_tp.weight_numel, node_feat_irreps, irreps_sh, hidden_irreps)
 
         self.fcn = FullyConnectedNet(
-            [irreps_in1.num_irreps, 6, 6, 6, self.conv_tp.weight_numel],
+            [irreps_in1.num_irreps, self.conv_tp.weight_numel],
             act=torch.nn.functional.silu
         )
 
@@ -105,7 +105,7 @@ class RadialAngularEmbedding(nn.Module):
 
         message = self.linear(message)
 
-        message = self.reshape(message)  # [n_nodes, nchannels, hidden_irreps]
+        message = self.reshape(message)  # [n_nodes, nchannels, irreps]
 
         return message
 
@@ -120,18 +120,12 @@ class UpdateNodeAttributesReadoutL2(nn.Module):
 
         out_irreps = o3.Irreps("0e + 1o + 2e")
 
+
         self.linear = Linear(irreps_in=hidden_irreps,
                              irreps_out=hidden_irreps
                              )
 
-        # TODO FIX THIS PART: IT IS ACTUALLY WRONG
-
         self.linear_intermediate = nn.ModuleList()
-
-        self.linear_intermediate.append(Linear(irreps_in=node_attr_irreps,
-                                               irreps_out=hidden_irreps
-                                               )
-                                        )
 
         self.linear_intermediate.append(Linear(irreps_in=hidden_irreps,
                                                irreps_out=hidden_irreps
@@ -144,12 +138,17 @@ class UpdateNodeAttributesReadoutL2(nn.Module):
 
     def forward(self,
                 message,
-                node_attributes
+                node_features_
                 ):
+
+        nodes, channels, irreps_dim = message.shape
 
         message = message.to(self.linear.weight.device)
 
-        node_features_intermid = self.linear_intermediate[1](self.linear_intermediate[0](node_attributes))
+
+        node_features_intermid = self.linear_intermediate[0](node_features_)
+
+        message = message.transpose(1,2).reshape(nodes, channels*irreps_dim)
 
         node_features = self.linear(message) + node_features_intermid
 
@@ -195,11 +194,11 @@ class NewNodeFeaturesFrom3Body(nn.Module):
                 ):
         # PREPARE THE SHAPES AND THE FEATURES IN THE RIGHT SHAPE
 
-        nodes, channels, irreps_dim = node_nbody[0].shape  # WE WANT THESE SHAPES
+        nodes, channels, irreps_dim = node_nbody[..., 0].shape  # WE WANT THESE SHAPES
 
         nodes, lenz = node_attr.shape
 
-        node3_ = torch.stack(tensors=(node_nbody[0], node_nbody[1], node_nbody[2]),
+        node3_ = torch.stack(tensors=(node_nbody[..., 0], node_nbody[..., 1], node_nbody[..., 2]),
                              dim=-1
                              ).transpose(1, 2)  # nodes, irreps, channels, nbody
 
@@ -208,6 +207,7 @@ class NewNodeFeaturesFrom3Body(nn.Module):
                                               node_attr
                                               ),
                                      dim=0)  # body, nodes, lenz
+
 
         node3_ = node3_.reshape(nodes, irreps_dim, channels * 3).transpose(1, 2)  # nodes, channels*nbody, irreps
 
@@ -223,10 +223,9 @@ class NewNodeFeaturesFrom3Body(nn.Module):
 
         output = self.linear_nodes_body(m_eta).reshape(nodes,
                                                        irreps_dim,
-                                                       channels).transpose(1,
-                                                                           2)  # nodes, channels, irreps
+                                                       channels) # nodes, irreps, channels
 
-        return output
+        return output.reshape(nodes, irreps_dim*channels)
 
 @compile_mode("script")
 class ConvolveTensor3body(nn.Module):
@@ -259,7 +258,6 @@ class ConvolveTensor3body(nn.Module):
                      ):
         nodes, channels, irreps_dim = x.shape
 
-        print(x.shape)
 
         x_reshaped = x.transpose(2, 1)
 
@@ -289,7 +287,11 @@ class ConvolveTensor3body(nn.Module):
 
         node3 = self.contraction(node2, node2_)  # nodes, channels, irreps
 
-        return node1, node2, node3
+        node_out = torch.stack(tensors=(node1, node2, node3),
+                             dim=-1
+                             )  # nodes, irreps, channels, nbody
+
+        return node_out
 
 
 @compile_mode("script")

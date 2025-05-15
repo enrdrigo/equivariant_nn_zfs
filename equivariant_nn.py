@@ -125,13 +125,15 @@ class SymmetricMatrixRegressor(nn.Module):
         self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
                                                      nchannels=nchannels,
                                                      node_feat_irreps=node_feat_irreps_start,
-                                                     irreps_sh=irreps_sh
+                                                     irreps_sh=irreps_sh,
+                                                     hidden_irreps=hidden_irreps
                                                      )
                               )
         self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
                                                      nchannels=nchannels,
                                                      node_feat_irreps=hidden_irreps,
-                                                     irreps_sh=irreps_sh
+                                                     irreps_sh=irreps_sh,
+                                                     hidden_irreps=hidden_irreps
                                                      )
                               )
 
@@ -167,7 +169,7 @@ class SymmetricMatrixRegressor(nn.Module):
                                                                 )
                                    )
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=1e-2, weight_decay=5e-7)
+        self.optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=5e-7)
 
         self.loss_weights = torch.tensor(weights)
 
@@ -217,7 +219,9 @@ class SymmetricMatrixRegressor(nn.Module):
                                          edge_index_b
                                          )
 
-            prod1 = self.prod[0](message1)
+            prod1_ = self.prod[0](message1)
+
+            prod1 = self.nbodyfeatures[0](prod1_, node_attr_b)
 
             readout1, node_features1 = self.update_readout[0](message1, prod1)
 
@@ -227,9 +231,11 @@ class SymmetricMatrixRegressor(nn.Module):
                                          edge_index_b
                                          )
 
-            prod2 = self.prod[1](message2)
+            prod2_ = self.prod[1](message2)
 
-            readout2, _ = self.update_readout[2](message2, prod2)
+            prod2 = self.nbodyfeatures[0](prod2_, node_attr_b)
+
+            readout2, _ = self.update_readout[1](message2, prod2)
 
             total_readout = readout1.sum(dim=0) + readout2.sum(dim=0)
 
@@ -238,16 +244,24 @@ class SymmetricMatrixRegressor(nn.Module):
         # Stack to form final output tensor
         return torch.stack(outputs, dim=0)
 
-
+from collections import defaultdict
 #  --- Training loop ---
 def NNtrain(model,
           loader,
             device=None
             ):
     device = device if device is not None else model.device
+    counts=defaultdict(int)
+    for name, param in model.named_parameters():
+        top_level = name.split('.')[0]  # e.g., "radialemb", "prod", etc.
+        if param.requires_grad:
+            counts[top_level] += param.numel()
+    for block, count in counts.items():
+        print(f"{block:<25}: {count:,} params")
+
     print(model.count_parameters())
     error=[]
-    for epoch in range(100):
+    for epoch in range(20):
         total_loss = 0
         for X, X_v, node_attr, edge_index, Y_true in loader:
             model.optimizer.zero_grad()  # Zeroing gradients
@@ -314,7 +328,7 @@ def plot_parity(true_values, predicted_values, labels):
     plt.show()
 
 if __name__ == "__main__":
-    db = read('dataset_pol_L2.extxyz', ':100')
+    db = read('dataset_pol_L2.extxyz', ':500')
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
@@ -330,8 +344,8 @@ if __name__ == "__main__":
                         )
 
     total_size = len(dataset)
-    train_ratio = 0.8
-    test_ratio = 0.2
+    train_ratio = 0.9
+    test_ratio = 0.1
 
     # Calculate split sizes
     train_size = int(train_ratio * total_size)
@@ -345,7 +359,7 @@ if __name__ == "__main__":
 
 
     train_loader = DataLoader(train_data,
-                              batch_size=10,
+                              batch_size=1,
                               shuffle=True,
                               collate_fn=collate_fn
                               )
@@ -360,10 +374,10 @@ if __name__ == "__main__":
     model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
                                      zlist=dataset.z_table,
                                      nchannels=2,
-                                     weights=[0,
-                                              0,
-                                              0,
-                                              0,
+                                     weights=[1,
+                                              1,
+                                              1,
+                                              1,
                                               1,
                                               1,
                                               1,
