@@ -3,12 +3,14 @@ import torch
 from torch import nn
 from e3nn.o3 import Linear
 from e3nn.nn import FullyConnectedNet
-from e3nn.o3 import TensorProduct
+from e3nn.o3 import TensorProduct, FullyConnectedTensorProduct
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
 from e3nn.o3 import Irreps
 from mace.modules.irreps_tools import reshape_irreps
 from mace.tools.scatter import scatter_sum
 from e3nn.util.jit import compile_mode
+
+# TODO: REVIEW THIS PART EXTENSIVELY, FIND THE BUG
 
 
 @compile_mode("script")
@@ -33,8 +35,8 @@ class NodeFeaturesStart(nn.Module):
 class RadialAngularEmbedding(nn.Module):
     def __init__(self,
                  nbessel,
-                 nchannels,
                  node_feat_irreps,
+                 node_attr_irreps,
                  irreps_sh,
                  hidden_irreps
                  ):
@@ -70,9 +72,15 @@ class RadialAngularEmbedding(nn.Module):
 
         self.reshape = reshape_irreps(hidden_irreps)
 
+        self.fctp_attributes = FullyConnectedTensorProduct(irreps_in1=node_attr_irreps,
+                                                           irreps_in2=node_feat_irreps,
+                                                           irreps_out=hidden_irreps
+                                                           )
+
     def forward(self,
                 length,
                 node_features,
+                node_attributes,
                 edge_attributes,
                 edge_index
                 ):
@@ -102,6 +110,6 @@ class RadialAngularEmbedding(nn.Module):
 
         message = self.linear(message)
 
-        message = self.reshape(message)  # [n_nodes, nchannels, irreps]
+        sc = self.fctp_attributes(node_attributes, node_features)  # [n_nodes, nchannel*irreps] hidden_irreps
 
-        return message
+        return self.reshape(message), sc

@@ -1,4 +1,5 @@
 import torch
+import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import numpy as np
 from ase.io import read
@@ -23,13 +24,44 @@ def collate_fn(batch):
 if __name__ == "__main__":
     db = read('dataset_pol_L2.extxyz', ':500')
 
-    batch_size = 1
+    batch_size = 4
 
     NEPOCHS = 20
 
     nchannels = 2
 
-    lr = 1e-1
+    lr = {'SGD': 2e-4,
+          'adam': 1e-2
+          }
+
+    START_FINE = 3
+
+    start_dyn = {"optimizer": lambda params: optim.SGD(params,
+                                                       lr=lr['SGD'],
+                                                       momentum=0.9,
+                                                       weight_decay=5e-7,
+                                                       dampening=1e-4
+                                                       ),
+                 "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                                     mode='min',
+                                                                                     threshold=1e-5,
+                                                                                     factor=0.7,
+                                                                                     patience=1
+                                                                                     ),
+                 "START_FINE": START_FINE
+                 }
+
+    fine_dyn = {"optimizer": lambda params: optim.AdamW(params,
+                                                        lr=lr['adam'],
+                                                        weight_decay=5e-7
+                                                        ),
+                "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                                    mode='min',
+                                                                                    threshold=1e-5,
+                                                                                    factor=0.7,
+                                                                                    patience=0
+                                                                                    )
+                }
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
@@ -37,7 +69,6 @@ if __name__ == "__main__":
                                        rcut=5.0,
                                        irreps_sh=Irreps('0e + 1o + 2e + 3o')
                                        )
-
 
     loader = DataLoader(dataset,
                         batch_size=1,
@@ -53,7 +84,7 @@ if __name__ == "__main__":
 
     validation_size = int(validation_ratio * total_size)
 
-    test_size = total_size - train_size - validation_size# ensures all data is used
+    test_size = total_size - train_size - validation_size # ensures all data is used
 
     # Randomly split
     train_data, test_data, validation_data = random_split(dataset,
@@ -81,7 +112,6 @@ if __name__ == "__main__":
     model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
                                      zlist=dataset.z_table,
                                      nchannels=nchannels,
-                                     lr=lr,
                                      weights=[1,
                                               1,
                                               1,
@@ -98,7 +128,10 @@ if __name__ == "__main__":
     nntrain(model=model,
             loader=train_loader,
             val_loader=validation_loader,
-            NEPOCHS=NEPOCHS
+            test_loader=test_loader,
+            NEPOCHS=NEPOCHS,
+            start_dyn=start_dyn,
+            fine_dyn=fine_dyn
             )
     model.eval()
     errors = []

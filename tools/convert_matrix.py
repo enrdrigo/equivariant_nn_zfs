@@ -19,16 +19,16 @@ def cartesian_to_spherical_irreps(matrix):
     components[0] = matrix.trace() / 3.0
 
     # ℓ = 1 components (antisymmetric part, imaginary in true tensors, zero here)
-    components[1] = (matrix[1, 2] - matrix[2, 1]) / (2**0.5)  # Y1-1
-    components[2] = (matrix[0, 2] - matrix[2, 0]) / (2**0.5)  # Y10
-    components[3] = (matrix[0, 1] - matrix[1, 0]) / (2**0.5)  # Y11
+    components[1] = (matrix[1, 2] - matrix[2, 1])   # Y1-1
+    components[2] = (matrix[0, 2] - matrix[2, 0])   # Y10
+    components[3] = (matrix[0, 1] - matrix[1, 0])   # Y11
 
     # ℓ = 2 components (traceless symmetric part)
-    components[4] = (matrix[0, 1] + matrix[1, 0])  # Y2-2
-    components[5] = (matrix[1, 2] + matrix[2, 1])  # Y2-1
-    components[6] = 2 * matrix[2, 2] - matrix[0, 0] - matrix[1, 1]  # Y20
-    components[7] = (matrix[0, 2] + matrix[2, 0])  # Y21
-    components[8] = matrix[0, 0] - matrix[1, 1]  # Y22
+    components[4] = (matrix[0, 1] + matrix[1, 0])  # xy Y2-2
+    components[5] = (matrix[1, 2] + matrix[2, 1])  # yz Y2-1
+    components[6] = 2 * matrix[2, 2] - matrix[0, 0] - matrix[1, 1]  # zz - xx - yyY20
+    components[7] = (matrix[0, 2] + matrix[2, 0])  # xz Y21
+    components[8] = matrix[0, 0] - matrix[1, 1]  # xx - yy Y22
 
     return components
 

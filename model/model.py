@@ -4,7 +4,7 @@ from torch import nn
 import torch.optim as optim
 from e3nn import o3
 from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
-from equivariant_nn_zfs.tools.prod import UpdateNodeAttributesReadoutL2, ConvolveTensor3body, NewNodeFeaturesFrom3Body
+from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
 
 
 # --- Symmetric Matrix Regressor ---
@@ -15,7 +15,6 @@ class SymmetricMatrixRegressor(nn.Module):
                  nchannels,
                  irreps_sh,
                  weights,
-                 lr,
                  device = None
                  ):
         super().__init__()
@@ -36,56 +35,41 @@ class SymmetricMatrixRegressor(nn.Module):
 
         self.radialemb = nn.ModuleList()
         self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
-                                                     nchannels=nchannels,
                                                      node_feat_irreps=node_feat_irreps_start,
                                                      irreps_sh=irreps_sh,
-                                                     hidden_irreps=hidden_irreps
+                                                     hidden_irreps=hidden_irreps,
+                                                     node_attr_irreps=node_attr_irreps
                                                      )
                               )
         self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
-                                                     nchannels=nchannels,
                                                      node_feat_irreps=hidden_irreps,
                                                      irreps_sh=irreps_sh,
-                                                     hidden_irreps=hidden_irreps
+                                                     hidden_irreps=hidden_irreps,
+                                                     node_attr_irreps=node_attr_irreps
                                                      )
                               )
 
         self.prod = nn.ModuleList()
-        self.prod.append(ConvolveTensor3body(irreps_sh=irreps_sh,
-                                             nchannels=nchannels
-                                             )
+        self.prod.append(Product3body(irreps_sh=irreps_sh,
+                                      hidden_irreps=hidden_irreps,
+                                      node_attr_irreps=node_attr_irreps,
+                                      ncor=[0, 1, 2]
+                                      )
                          )
-        self.prod.append(ConvolveTensor3body(irreps_sh=irreps_sh,
-                                             nchannels=nchannels
-                                             )
+        self.prod.append(Product3body(irreps_sh=irreps_sh,
+                                      hidden_irreps=hidden_irreps,
+                                      node_attr_irreps=node_attr_irreps,
+                                      ncor=[0, 1, 2]
+                                      )
                          )
-
-        self.nbodyfeatures = nn.ModuleList()
-        self.nbodyfeatures.append(NewNodeFeaturesFrom3Body(irreps_sh=irreps_sh,
-                                                           node_attr_irreps=node_attr_irreps,
-                                                           hidden_irreps=hidden_irreps,
-                                                           )
-                                  )
-        self.nbodyfeatures.append(NewNodeFeaturesFrom3Body(irreps_sh=irreps_sh,
-                                                           node_attr_irreps=node_attr_irreps,
-                                                           hidden_irreps=hidden_irreps,
-                                                           )
-                                  )
 
         self.update_readout = nn.ModuleList()
-        self.update_readout.append(UpdateNodeAttributesReadoutL2(hidden_irreps=hidden_irreps,
-                                                                 node_attr_irreps=node_attr_irreps
-                                                                 )
+        self.update_readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+                                             )
                                    )
-        self.update_readout.append(UpdateNodeAttributesReadoutL2(hidden_irreps=hidden_irreps,
-                                                                 node_attr_irreps=node_attr_irreps
-                                                                )
+        self.update_readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+                                             )
                                    )
-
-        self.optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=5e-7)
-
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', threshold=1e-3,
-                                                              factor=0.7, patience=0)
 
         self.loss_weights = torch.tensor(weights)
 
@@ -107,10 +91,10 @@ class SymmetricMatrixRegressor(nn.Module):
         loss = weights * ((pred_flat - target_flat) ** 2).mean(axis=0)
         return loss.mean()
 
-    def mse_loss_xcomponent(self,
-                                     pred,
-                                     target
-                                     ):
+    def mse_components(self,
+                       pred,
+                       target
+                       ):
         # Extract upper triangle components (batch_size, 9)
 
         device = pred.device  # Get the device of prediction
@@ -118,8 +102,10 @@ class SymmetricMatrixRegressor(nn.Module):
         target = target.to(device)
 
         pred_flat = pred.view(pred.size(0), -1)
+
         target_flat = target.view(target.size(0), -1)
-        loss =  ((pred_flat - target_flat) ** 2)
+
+        loss = ((pred_flat - target_flat) ** 2)
         return loss
 
     def count_parameters(self):
@@ -136,33 +122,26 @@ class SymmetricMatrixRegressor(nn.Module):
         for idx, (lenght_b, edge_attr_b, node_attr_b, edge_index_b) in enumerate(zip(x, x_v, node_attr, edge_index)):
             node_attr_b = node_attr_b.detach().requires_grad_()
 
-            node_features_initial = self.node_features(node_attr_b)
+            node_features = self.node_features(node_attr_b)
 
-            message1 = self.radialemb[0](lenght_b,
-                                         node_features_initial,
-                                         edge_attr_b,
-                                         edge_index_b
-                                         )
+            total_readout = 0
 
-            prod1_ = self.prod[0](message1)
+            for i in range(2):
 
-            prod1 = self.nbodyfeatures[0](prod1_, node_attr_b)
+                message, sc = self.radialemb[i](lenght_b,
+                                                node_features,
+                                                node_attr_b,
+                                                edge_attr_b,
+                                                edge_index_b
+                                                )
 
-            readout1, node_features1 = self.update_readout[0](message1, prod1)
+                node_features = self.prod[i](message,
+                                             node_attr_b,
+                                             sc)
 
-            message2 = self.radialemb[1](lenght_b,
-                                         node_features1,
-                                         edge_attr_b,
-                                         edge_index_b
-                                         )
+                readout = self.update_readout[i](node_features)
 
-            prod2_ = self.prod[1](message2)
-
-            prod2 = self.nbodyfeatures[0](prod2_, node_attr_b)
-
-            readout2, _ = self.update_readout[1](message2, prod2)
-
-            total_readout = readout1.sum(dim=0) + readout2.sum(dim=0)
+                total_readout += readout.sum(dim=0)
 
             outputs.append(total_readout)
 
