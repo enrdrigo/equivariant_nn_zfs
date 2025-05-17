@@ -22,13 +22,13 @@ def collate_fn(batch):
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
 if __name__ == "__main__":
-    db = read('dataset_pol_L2.extxyz', ':500')
+    db = read('dataset_pol_L2.extxyz', ':1000')
 
-    batch_size = 4
+    batch_size = 10
 
-    NEPOCHS = 20
+    NEPOCHS = 40
 
-    nchannels = 2
+    nchannels = 4
 
     lr = {'SGD': 2e-4,
           'adam': 1e-2
@@ -57,9 +57,9 @@ if __name__ == "__main__":
                                                         ),
                 "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                     mode='min',
-                                                                                    threshold=1e-5,
-                                                                                    factor=0.7,
-                                                                                    patience=0
+                                                                                    threshold=1e-4,
+                                                                                    factor=0.9,
+                                                                                    patience=1
                                                                                     )
                 }
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
                                        pol_cut_num=6,
                                        nbessel=8,
                                        rcut=5.0,
-                                       irreps_sh=Irreps('0e + 1o + 2e + 3o')
+                                       irreps_sh=Irreps('0e + 1o + 2e')
                                        )
 
     loader = DataLoader(dataset,
@@ -86,6 +86,8 @@ if __name__ == "__main__":
 
     test_size = total_size - train_size - validation_size # ensures all data is used
 
+    print([train_size, test_size, validation_size])
+
     # Randomly split
     train_data, test_data, validation_data = random_split(dataset,
                                                           [train_size, test_size, validation_size]
@@ -98,12 +100,12 @@ if __name__ == "__main__":
                               )
 
     test_loader = DataLoader(test_data,
-                             batch_size=batch_size,
+                             batch_size=1,
                              collate_fn=collate_fn
                              )
 
     validation_loader = DataLoader(validation_data,
-                                   batch_size=batch_size,
+                                   batch_size=1,
                                    collate_fn=collate_fn
                                    )
 
@@ -133,26 +135,17 @@ if __name__ == "__main__":
             start_dyn=start_dyn,
             fine_dyn=fine_dyn
             )
+
+    print("\nEvaluating on test set:")
+
     model.eval()
     errors = []
     # Extracting true and predicted inertia tensor components
-    true = []
-    pred = []
-    print("\nEvaluating on test set:")
     with torch.no_grad():
         for X, X_v, node_attr, edge_index,  Y_true in test_loader:
             Y_pred = model(X, X_v, node_attr, edge_index)
             mse = model.loss_fn(Y_pred, Y_true).item()
             errors.append(mse)
-            true.append(Y_true.view(-1).numpy())  # Convert to numpy array
-            pred.append(Y_pred.view(-1).numpy())  # Convert to numpy array
 
     mean_mse = np.mean(errors)
     print(f"Test Mean Squared Error (MSE): {mean_mse:.6f}")
-
-    true = np.array(true)  # Remove unnecessary dimensions
-    pred = np.array(pred)  # Remove unnecessary dimensions
-
-    # Labels for each component of the inertia tensor
-    labels = [r'$Y^0_0$', r'$Y^1_{-1}$', r'$Y^1_0$', r'$Y^1_1$',
-              r'$Y^2_{-2}$', r'$Y^2_{-1}$', r'$Y^2_0$', r'$Y^2_1$', r'$Y^2_1$']

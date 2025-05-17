@@ -2,6 +2,13 @@ import torch
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s',
+)
+
 
 
 def validate(model, loader, device):
@@ -22,16 +29,19 @@ def validate(model, loader, device):
             total_loss += loss.item()
 
     avg_loss = total_loss / len(loader)
-    print(f"Validation Loss = {avg_loss:.4f}")
+    logging.info(f"VAL   Loss = {avg_loss:.4f}")
     return avg_loss
 
 
-def test(model, loader, device, epoch):
+def test(model, loader, device, epoch, nepoch):
+
     model.eval()
     rmse_rel = []
 
     y_true_list = []
     y_pred_list = []
+
+    error_batches = []
 
     with torch.no_grad():
         for X, X_v, node_attr, edge_index, Y_true in loader:
@@ -62,12 +72,17 @@ def test(model, loader, device, epoch):
             y_true_list.append(Y_true[0])
             y_pred_list.append(Y_pred[0])
 
+            error_batches.append(loss)
+
+    error_batches = np.array(error_batches)
+    logging.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
+    logging.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
+
     rmse_rel = np.array(rmse_rel)
-    print("TEST relative RMSE values:", ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
-    if any(rmse_rel.mean(axis=0) > 1e1) and epoch > 10:
+    logging.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
+    if epoch == nepoch:
         with open('failed_test.pkl', 'wb') as g:
             torch.save([y_true_list, y_pred_list], g)
-        raise ValueError('EXCESSIVE ERROR!')
     return
 
 
@@ -89,7 +104,7 @@ def nntrain(model,
     for block, count in counts.items():
         print(f"{block:<25}: {count:,} params")
 
-    print(model.count_parameters())
+    logging.warning(f"{model.count_parameters()}")
 
     optimizer = start_dyn['optimizer'](model.parameters())
     scheduler = start_dyn['scheduler'](optimizer)
@@ -129,38 +144,26 @@ def nntrain(model,
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch + 1}")
+        logging.info(f"Epoch {epoch + 1}")
 
         for param_group in optimizer.param_groups:
-            print(f"LR: {param_group['lr']}")
+            logging.info(f"LR: {param_group['lr']}")
 
-        print(f"Training Loss = {total_loss / len(loader):.4f} ", end='')
+        error_batches = np.array(error_batches)
+        logging.info(r'$Y^0_0$ $Y^1_{-1}$ $Y^1_0$ $Y^1_1$ $Y^2_{-2}$ $Y^2_{-1}$ $Y^2_0$ $Y^2_1$ $Y^2_1$')
+        logging.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
+        logging.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
+
+        logging.info(f"TRAIN Loss = {total_loss / len(loader):.4f} ")
 
         val_loss = validate(model, val_loader, device)
 
-        error_batches = np.array(error_batches)
-        print(r'$Y^0_0$ $Y^1_{-1}$ $Y^1_0$ $Y^1_1$ $Y^2_{-2}$ $Y^2_{-1}$ $Y^2_0$ $Y^2_1$ $Y^2_1$')
-        print("MEAN Loss values:", ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
-        print("STD Loss values:", ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
-
         error.append(np.array(error_batches))
 
-        test(model, test_loader, device, epoch=epoch)
+        test(model, test_loader, device, epoch=epoch, nepoch=NEPOCHS-1)
 
         scheduler.step(val_loss)
 
-    fig, axes = plt.subplots(3, 3, figsize=(9, 9))
-    axes = axes.ravel()  # Flatten the 2D array of axes
+        torch.save(model, "checkpoint.pth")
 
-    labels = [r'$Y^0_0$', r'$Y^1_{-1}$', r'$Y^1_0$', r'$Y^1_1$',
-              r'$Y^2_{-2}$', r'$Y^2_{-1}$', r'$Y^2_0$', r'$Y^2_1$', r'$Y^2_2$']
-
-    for i in range(9):
-        ax = axes[i]
-
-        ax.plot(np.array(error)[..., i], '.', color='b')
-        ax.set_ylabel(labels[i])
-
-    plt.tight_layout()
-    plt.show()
     np.save('training', np.array(error))

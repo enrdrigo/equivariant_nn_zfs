@@ -37,6 +37,8 @@ class Product3body(nn.Module):
                                                            irreps_out=hidden_irreps
                                                            )
 
+        print(self.linear_body, self.linear, self.fctp_attributes)
+
     def forward(self,
                 node_feature_i,
                 node_attr,
@@ -76,6 +78,8 @@ class ReadoutL2(nn.Module):
         self.linear_readout = Linear(irreps_in=hidden_irreps,
                                      irreps_out=out_irreps
                                      )
+
+        print(self.linear_readout)
 
     def forward(self,
                 node_features

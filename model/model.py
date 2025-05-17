@@ -63,13 +63,13 @@ class SymmetricMatrixRegressor(nn.Module):
                                       )
                          )
 
-        self.update_readout = nn.ModuleList()
-        self.update_readout.append(ReadoutL2(hidden_irreps=hidden_irreps
-                                             )
-                                   )
-        self.update_readout.append(ReadoutL2(hidden_irreps=hidden_irreps
-                                             )
-                                   )
+        self.readout = nn.ModuleList()
+        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+                                      )
+                            )
+        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+                                      )
+                            )
 
         self.loss_weights = torch.tensor(weights)
 
@@ -139,7 +139,7 @@ class SymmetricMatrixRegressor(nn.Module):
                                              node_attr_b,
                                              sc)
 
-                readout = self.update_readout[i](node_features)
+                readout = self.readout[i](node_features)
 
                 total_readout += readout.sum(dim=0)
 

@@ -59,7 +59,7 @@ class RadialAngularEmbedding(nn.Module):
         irreps_in1 = Irreps(f'{nbessel}x0e')
 
         self.fcn = FullyConnectedNet(
-            [irreps_in1.num_irreps, self.conv_tp.weight_numel],
+            [irreps_in1.num_irreps,  self.conv_tp.weight_numel],
             act=torch.nn.functional.silu
         )
 
@@ -76,6 +76,8 @@ class RadialAngularEmbedding(nn.Module):
                                                            irreps_in2=node_feat_irreps,
                                                            irreps_out=hidden_irreps
                                                            )
+
+        print(self.fcn, self.linear, self.fctp_attributes)
 
     def forward(self,
                 length,
