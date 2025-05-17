@@ -8,6 +8,7 @@ from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import nntrain
 from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
 from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+import random
 
 def collate_fn(batch):
     """

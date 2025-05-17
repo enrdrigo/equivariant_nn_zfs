@@ -29,7 +29,7 @@ def validate(model, loader, device):
             total_loss += loss.item()
 
     avg_loss = total_loss / len(loader)
-    logging.info(f"VAL   Loss = {avg_loss:.4f}")
+    logging.info(f"VAL        Loss =                    {avg_loss:.4f}")
     return avg_loss
 
 
@@ -101,8 +101,9 @@ def nntrain(model,
         top_level = name.split('.')[0]  # e.g., "radialemb", "prod", etc.
         if param.requires_grad:
             counts[top_level] += param.numel()
+
     for block, count in counts.items():
-        print(f"{block:<25}: {count:,} params")
+        logging.info(f"{block:<25}: {count:,} params")
 
     logging.warning(f"{model.count_parameters()}")
 
@@ -110,6 +111,17 @@ def nntrain(model,
     scheduler = start_dyn['scheduler'](optimizer)
 
     error = []
+    logging.info(r"                          " +
+                 "$Y^0_0$    " +
+                 "$Y^1_{-1}$ " +
+                 "$Y^1_0$    " +
+                 "$Y^1_1$    " +
+                 "$Y^2_{-2}$ " +
+                 "$Y^2_{-1}$ " +
+                 "$Y^2_0$    " +
+                 "$Y^2_1$    " +
+                 "$Y^2_1$")
+
     for epoch in range(NEPOCHS):
         error_batches = []
         total_loss = 0
@@ -119,8 +131,6 @@ def nntrain(model,
             scheduler = fine_dyn['scheduler'](optimizer)
 
         for X, X_v, node_attr, edge_index, Y_true in loader:
-
-
 
             optimizer.zero_grad()  # Zeroing gradients
 
@@ -150,11 +160,11 @@ def nntrain(model,
             logging.info(f"LR: {param_group['lr']}")
 
         error_batches = np.array(error_batches)
-        logging.info(r'$Y^0_0$ $Y^1_{-1}$ $Y^1_0$ $Y^1_1$ $Y^2_{-2}$ $Y^2_{-1}$ $Y^2_0$ $Y^2_1$ $Y^2_1$')
+
         logging.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
         logging.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
 
-        logging.info(f"TRAIN Loss = {total_loss / len(loader):.4f} ")
+        logging.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 
         val_loss = validate(model, val_loader, device)
 
