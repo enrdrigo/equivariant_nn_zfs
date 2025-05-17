@@ -26,9 +26,6 @@ Evaluation: Includes parity plotting between predicted and true tensor component
 
 🧪 Requirements
 
-
-convert_matrix.py: Converts Cartesian tensors to spherical harmonics.
-blocks_zfs.py: Contains custom equivariant layers.
 dataset_pol_L2.extxyz: The input structure dataset (in ASE format).
 
 🚀 Usage
@@ -36,30 +33,18 @@ dataset_pol_L2.extxyz: The input structure dataset (in ASE format).
 Prepare your dataset:
 The dataset must be an .extxyz file with an attribute target_L2 in each structure's info dictionary, storing the 3×3 tensor to be predicted.
 Run training:
-python equivariant_nn.py
+python main.py
 This script will:
 
 Load and preprocess the data.
-Train the model on 90% of the dataset.
-Evaluate on the remaining 10%.
-Plot training loss and parity plots.
+Train the model on 80% of the dataset.
+Evaluate on the remaining 20%.
 Custom Model Settings (optional):
 Adjust parameters such as:
 
 pol_cut_num=6
 nbessel=8
 rcut=5.0
-nchannels=2
-irreps_sh=Irreps('0e + 1o + 2e + 3o')
+nchannels=4
+irreps_sh=Irreps('0e + 1o + 2e')
 to tune model complexity and radial/angular resolution.
-
-📊 Output
-
-Loss Plot: Tracks per-component error throughout training.
-Parity Plots: Compare predicted vs. true components for each spherical harmonic term.
-MSE Score: Mean squared error on test data.
-
-📌 Notes
-
-Designed for general 3×3 symmetric tensor prediction tasks where rotational equivariance matters.
-""Easily"" extendable to other spherical tensor orders or to learn vector/scalar quantities.
