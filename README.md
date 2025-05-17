@@ -1,4 +1,4 @@
-README GENERATED VIA AI! 
+# README GENERATED VIA AI! 
 # TODO: FIX IT BETTER
 
 Equivariant Matrix Regressor for Spherical Tensor Prediction
