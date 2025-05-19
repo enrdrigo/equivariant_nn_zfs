@@ -5,7 +5,7 @@ from mace import data, modules, tools
 from e3nn.o3 import SphericalHarmonics
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
-from equivariant_nn_zfs.equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
+from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
 
 
 # --- Dummy dataset (replace with your own structures and target matrices) ---

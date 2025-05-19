@@ -5,9 +5,9 @@ from torch.utils.data import DataLoader, random_split
 import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
-from equivariant_nn_zfs.equivariant_nn_zfs.train.train import nntrain
-from equivariant_nn_zfs.equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
-from equivariant_nn_zfs.equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+from equivariant_nn_zfs.train.train import nntrain
+from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
+from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
 
 
 def collate_fn(batch):
@@ -23,7 +23,7 @@ def collate_fn(batch):
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
 if __name__ == "__main__":
-    db = read('dataset_pol_L2.extxyz', ':625')
+    db = read('../dataset_pol_L2.extxyz', ':625')
 
     batch_size = 1
 
