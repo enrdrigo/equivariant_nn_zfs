@@ -77,7 +77,7 @@ def test(model, loader, device, epoch, nepoch):
     logging.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
     logging.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
 
-    rmse_rel = torch.tensor(rmse_rel)
+    rmse_rel = torch.stack(rmse_rel, dim=0)
     logging.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
     if epoch == nepoch:
         with open('failed_test.pkl', 'wb') as g:
