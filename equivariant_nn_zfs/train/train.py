@@ -62,7 +62,7 @@ def test(model, loader, device, epoch, nepoch):
 
             ch_zeros = []
 
-            for idx, y_pred_ in enumerate(Y_pred[0].numpy()):
+            for idx, y_pred_ in enumerate(Y_pred[0]):
                 ch = 0
                 if abs(y_pred_) > 1e-6:
                     ch = np.sqrt(loss[idx])/y_pred_
