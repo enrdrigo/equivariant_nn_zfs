@@ -68,7 +68,7 @@ class ContractProduct3j(nn.Module):
                 for ir3 in ir1 * ir2:
                     if ir3 not in self.irreps_target:
                         continue
-                    w123 = wigner_3j(ir1.l, ir2.l, ir3.l)  # with shape [2l_1+1, 2l_2+1, 2l_3+1]
+                    w123 = wigner_3j(ir1.l, ir2.l, ir3.l).to(device)  # with shape [2l_1+1, 2l_2+1, 2l_3+1]
                     tir1 = self.extractl(tensor_1, self.irreps_in1, ir1.l)
                     tir2 = self.extractl(tensor_2, self.irreps_in2, ir2.l)
 
