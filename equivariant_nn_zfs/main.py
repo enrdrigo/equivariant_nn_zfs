@@ -1,14 +1,14 @@
+from mace import data, modules, tools
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import numpy as np
 from ase.io import read
-from mace import data, modules, tools
 from e3nn.o3 import Irreps
-from equivariant_nn_zfs.train.train import nntrain
-from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
-from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
-import random
+from equivariant_nn_zfs.equivariant_nn_zfs.train.train import nntrain
+from equivariant_nn_zfs.equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
+from equivariant_nn_zfs.equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+
 
 def collate_fn(batch):
     """

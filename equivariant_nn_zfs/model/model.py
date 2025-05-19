@@ -1,10 +1,8 @@
-from mace import data, modules, tools
 import torch
 from torch import nn
-import torch.optim as optim
 from e3nn import o3
-from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
-from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
+from equivariant_nn_zfs.equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
+from equivariant_nn_zfs.equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
 
 
 # --- Symmetric Matrix Regressor ---

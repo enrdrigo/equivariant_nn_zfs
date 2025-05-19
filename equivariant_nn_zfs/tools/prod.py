@@ -1,11 +1,9 @@
-from mace import data, modules, tools
 import torch
 from torch import nn
 from e3nn import o3
 from e3nn.o3 import Linear, FullyConnectedTensorProduct
-from e3nn.o3 import Irreps
 from e3nn.util.jit import compile_mode
-from equivariant_nn_zfs.tools.contract import ContractProduct3j
+from equivariant_nn_zfs.equivariant_nn_zfs.tools.contract import ContractProduct3j
 
 
 @compile_mode("script")
