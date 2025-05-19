@@ -2,6 +2,12 @@ from mace import data, modules, tools
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s',
+)
 import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
@@ -128,6 +134,8 @@ if __name__ == "__main__":
                                      device=device,
                                      irreps_sh=dataset.irreps_sh
                                      )
+
+    logging.info(f"{device}")
 
     model = model.to(device)
 
