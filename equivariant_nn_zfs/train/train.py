@@ -1,7 +1,6 @@
 import torch
 from collections import defaultdict
 import matplotlib.pyplot as plt
-import numpy as np
 import logging
 
 logging.basicConfig(
@@ -65,20 +64,20 @@ def test(model, loader, device, epoch, nepoch):
             for idx, y_pred_ in enumerate(Y_pred[0]):
                 ch = 0
                 if abs(y_pred_) > 1e-6:
-                    ch = np.sqrt(loss[idx])/y_pred_
+                    ch = torch.sqrt(torch.tensor(loss[idx]))/y_pred_
                 ch_zeros.append(ch)
 
-            rmse_rel.append(np.array(ch_zeros))
+            rmse_rel.append(torch.tensor(ch_zeros))
             y_true_list.append(Y_true[0])
             y_pred_list.append(Y_pred[0])
 
             error_batches.append(loss)
 
-    error_batches = np.array(error_batches)
+    error_batches = torch.tensor(error_batches)
     logging.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
     logging.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
 
-    rmse_rel = np.array(rmse_rel)
+    rmse_rel = torch.tensor(rmse_rel)
     logging.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
     if epoch == nepoch:
         with open('failed_test.pkl', 'wb') as g:
@@ -159,16 +158,16 @@ def nntrain(model,
         for param_group in optimizer.param_groups:
             logging.info(f"LR: {param_group['lr']}")
 
-        error_batches = np.array(error_batches)
+        error_batches = torch.tensor(error_batches)
 
-        logging.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
-        logging.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
+        logging.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(dim=0)))
+        logging.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(dim=0)))
 
         logging.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 
         val_loss = validate(model, val_loader, device)
 
-        error.append(np.array(error_batches))
+        error.append(torch.tensor(error_batches))
 
         test(model, test_loader, device, epoch=epoch, nepoch=NEPOCHS-1)
 
@@ -176,4 +175,4 @@ def nntrain(model,
 
         torch.save(model, "../checkpoint.pth")
 
-    np.save('../training', np.array(error))
+    torch.save(torch.stack(error, dim=-1), '../training.pth')
