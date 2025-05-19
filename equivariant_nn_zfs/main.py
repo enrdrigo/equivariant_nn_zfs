@@ -128,6 +128,9 @@ if __name__ == "__main__":
                                      device=device,
                                      irreps_sh=dataset.irreps_sh
                                      )
+
+    model = model.to(device)
+
     nntrain(model=model,
             loader=train_loader,
             val_loader=validation_loader,
