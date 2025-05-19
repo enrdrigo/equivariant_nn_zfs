@@ -23,19 +23,19 @@ def collate_fn(batch):
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
 if __name__ == "__main__":
-    db = read('dataset_pol_L2.extxyz', ':1000')
+    db = read('dataset_pol_L2.extxyz', ':625')
 
-    batch_size = 10
+    batch_size = 1
 
-    NEPOCHS = 40
+    NEPOCHS = 25
 
-    nchannels = 4
+    nchannels = 8
 
-    lr = {'SGD': 2e-4,
+    lr = {'SGD': 1e-4,
           'adam': 1e-2
           }
 
-    START_FINE = 3
+    START_FINE = 0
 
     start_dyn = {"optimizer": lambda params: optim.SGD(params,
                                                        lr=lr['SGD'],
@@ -77,15 +77,15 @@ if __name__ == "__main__":
                         )
 
     total_size = len(dataset)
-    train_ratio = 0.8
+    test_ratio = 0.15
     validation_ratio = 0.05
 
     # Calculate split sizes
-    train_size = int(train_ratio * total_size)
+    test_size = int(test_ratio * total_size)
 
     validation_size = int(validation_ratio * total_size)
 
-    test_size = total_size - train_size - validation_size # ensures all data is used
+    train_size = total_size - test_size - validation_size # ensures all data is used
 
     print([train_size, test_size, validation_size])
 
