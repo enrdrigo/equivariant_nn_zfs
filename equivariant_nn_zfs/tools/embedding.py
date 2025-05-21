@@ -1,4 +1,3 @@
-from mace import data, modules, tools
 import torch
 from torch import nn
 from e3nn.o3 import Linear
@@ -10,7 +9,7 @@ from mace.modules.irreps_tools import reshape_irreps
 from mace.tools.scatter import scatter_sum
 from e3nn.util.jit import compile_mode
 
-# TODO: REVIEW THIS PART EXTENSIVELY, FIND THE BUG
+# TODO: IN INPUT I WANT ONLY POSITIONS NOT FEATURES!
 
 
 @compile_mode("script")

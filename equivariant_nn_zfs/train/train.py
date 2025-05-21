@@ -1,13 +1,11 @@
 import torch
 from collections import defaultdict
-import matplotlib.pyplot as plt
 import logging
 
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(message)s',
 )
-
 
 
 def validate(model, loader, device):

@@ -1,29 +1,33 @@
 import torch
 from torch.utils.data import Dataset
-import numpy as np
 from mace import data, modules, tools
 from e3nn.o3 import SphericalHarmonics
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
+from e3nn.io import CartesianTensor
 from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
+import warnings
 
 
-# --- Dummy dataset (replace with your own structures and target matrices) ---
 class EquivariantMatrixDataset(Dataset):
+
     def __init__(self,
                  structures,
                  pol_cut_num,
                  nbessel,
                  rcut,
-                 irreps_sh
+                 irreps_sh,
+                 device
                  ):
-        super().__init__()
         self.structures = structures
-        self.targets = np.array([cartesian_to_spherical_irreps(s.info['target_L2'].reshape(3, 3)) for s in structures])
         self.pol_cut_num = pol_cut_num
         self.nbessel = nbessel
         self.rcut = rcut
         self.irreps_sh = irreps_sh
+        cartesian = CartesianTensor('ij=ij')
+        #  warnings.filterwarnings("ignore", category=UserWarning, module="torch.jit._check")
+        self.targets = torch.stack([cartesian_to_spherical_irreps(torch.tensor(s.info['target_L2'].reshape(3, 3))) for s in structures], dim=0)
+        self.device = device
 
         z_table = set()
         for s in structures:
@@ -35,11 +39,11 @@ class EquivariantMatrixDataset(Dataset):
         return len(self.structures)
 
     def __getitem__(self, idx):
-        self.struct = self.structures[idx]
+        struct = self.structures[idx]
 
         config = data.Configuration(
-            atomic_numbers=self.struct.numbers,
-            positions=self.struct.positions,
+            atomic_numbers=struct.numbers,
+            positions=struct.positions,
             properties={'positions': 'positions'},
             property_weights={'positions': 1}
         )
@@ -53,11 +57,11 @@ class EquivariantMatrixDataset(Dataset):
             shifts=batch["shifts"],
         )
 
-        self.node_attr = batch.node_attrs
+        node_attr = batch.node_attrs
 
-        self.edge_index = batch.edge_index
+        edge_index = batch.edge_index
 
-        self.node_attr_len = vectors.shape[0]
+        node_attr_len = vectors.shape[0]
 
         cutoff = PolynomialCutoff(r_max=self.rcut, p=self.pol_cut_num)
 
@@ -69,6 +73,6 @@ class EquivariantMatrixDataset(Dataset):
 
         length_descriptor = cutoff(lengths) * bf(lengths)
 
-        target_tensor = torch.tensor(self.targets[idx], dtype=torch.float32)
+        target = self.targets[idx]
 
-        return length_descriptor, vector_descriptor, self.node_attr, self.edge_index, target_tensor
+        return length_descriptor, vector_descriptor, node_attr, edge_index, target

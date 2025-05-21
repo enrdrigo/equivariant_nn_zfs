@@ -1,4 +1,3 @@
-from mace import data, modules, tools
 import torch
 from torch import nn
 from e3nn.o3 import Irreps

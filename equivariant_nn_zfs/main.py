@@ -1,19 +1,19 @@
-from mace import data, modules, tools
+import mace
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s',
-)
 import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import nntrain
 from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
 from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s',
+)
 
 
 def collate_fn(batch):
@@ -29,7 +29,7 @@ def collate_fn(batch):
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
 if __name__ == "__main__":
-    db = read('../dataset_pol_L2.extxyz', ':625')
+    db = read('../d_train.extxyz', ':')
 
     batch_size = 1
 
@@ -42,6 +42,8 @@ if __name__ == "__main__":
           }
 
     START_FINE = 0
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     start_dyn = {"optimizer": lambda params: optim.SGD(params,
                                                        lr=lr['SGD'],
@@ -74,7 +76,8 @@ if __name__ == "__main__":
                                        pol_cut_num=6,
                                        nbessel=8,
                                        rcut=5.0,
-                                       irreps_sh=Irreps('0e + 1o + 2e')
+                                       irreps_sh=Irreps('0e + 1o + 2e'),
+                                       device=device
                                        )
 
     loader = DataLoader(dataset,
@@ -83,8 +86,8 @@ if __name__ == "__main__":
                         )
 
     total_size = len(dataset)
-    test_ratio = 0.15
-    validation_ratio = 0.05
+    test_ratio = 0.1
+    validation_ratio = 0.1
 
     # Calculate split sizes
     test_size = int(test_ratio * total_size)
@@ -115,8 +118,6 @@ if __name__ == "__main__":
                                    batch_size=1,
                                    collate_fn=collate_fn
                                    )
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
                                      zlist=dataset.z_table,
