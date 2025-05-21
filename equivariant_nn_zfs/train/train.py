@@ -171,6 +171,6 @@ def nntrain(model,
 
         scheduler.step(val_loss)
 
-        torch.save(model, "../checkpoint.pth")
+        torch.save(model, "checkpoint.pth")
 
-    torch.save(torch.stack(error, dim=-1), '../training.pth')
+    torch.save(torch.stack(error, dim=-1), 'training.pth')

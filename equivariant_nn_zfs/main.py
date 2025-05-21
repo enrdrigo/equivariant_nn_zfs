@@ -1,4 +1,5 @@
 import mace
+import argparse
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
@@ -28,49 +29,62 @@ def collate_fn(batch):
 
     return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
 
+
 if __name__ == "__main__":
-    db = read('../d_train.extxyz', ':')
 
-    batch_size = 1
+    parser = argparse.ArgumentParser(description="Train an equivariant neural network for ZFS prediction.")
 
-    NEPOCHS = 25
+    parser.add_argument('--data_path', type=str, default='train_ZFS_NVE.extxyz', help='Path to input EXTXYZ file')
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training')
+    parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
+    parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
+    parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
 
-    nchannels = 8
+    args = parser.parse_args()
+
+    db = read(args.data_path, ':')
+
+    batch_size = args.batch_size
+
+    epochs = args.epochs
+
+    nchannels = args.nchannels
+
+    device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
     lr = {'SGD': 1e-4,
           'adam': 1e-2
           }
 
-    START_FINE = 0
+    START_FINE = -1
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    fine_dyn = {"optimizer": lambda params: optim.SGD(params,
+                                                      lr=lr['SGD'],
+                                                      momentum=0.2,
+                                                      weight_decay=5e-7,
+                                                      dampening=1e-4
+                                                      ),
+                "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                                    mode='min',
+                                                                                    threshold=1e-5,
+                                                                                    factor=0.7,
+                                                                                    patience=1
+                                                                                    ),
+                "START_FINE": START_FINE
+                }
 
-    start_dyn = {"optimizer": lambda params: optim.SGD(params,
-                                                       lr=lr['SGD'],
-                                                       momentum=0.9,
-                                                       weight_decay=5e-7,
-                                                       dampening=1e-4
-                                                       ),
+    start_dyn = {"optimizer": lambda params: optim.AdamW(params,
+                                                         lr=lr['adam'],
+                                                         weight_decay=5e-7
+                                                         ),
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
-                                                                                     threshold=1e-5,
-                                                                                     factor=0.7,
+                                                                                     threshold=1e-4,
+                                                                                     factor=0.9,
                                                                                      patience=1
                                                                                      ),
                  "START_FINE": START_FINE
                  }
-
-    fine_dyn = {"optimizer": lambda params: optim.AdamW(params,
-                                                        lr=lr['adam'],
-                                                        weight_decay=5e-7
-                                                        ),
-                "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                                    mode='min',
-                                                                                    threshold=1e-4,
-                                                                                    factor=0.9,
-                                                                                    patience=1
-                                                                                    )
-                }
 
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
@@ -94,7 +108,7 @@ if __name__ == "__main__":
 
     validation_size = int(validation_ratio * total_size)
 
-    train_size = total_size - test_size - validation_size # ensures all data is used
+    train_size = total_size - test_size - validation_size  # ensures all data is used
 
     print([train_size, test_size, validation_size])
 
@@ -144,7 +158,7 @@ if __name__ == "__main__":
             loader=train_loader,
             val_loader=validation_loader,
             test_loader=test_loader,
-            NEPOCHS=NEPOCHS,
+            NEPOCHS=epochs,
             start_dyn=start_dyn,
             fine_dyn=fine_dyn
             )
