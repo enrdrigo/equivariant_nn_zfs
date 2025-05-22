@@ -39,16 +39,11 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=200, help='Number of training epochs')
     parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
+    parser.add_argument('--rcut', type=float, help='cutoff for the ML')
 
     args = parser.parse_args()
 
     db = read(args.data_path, ':625')
-
-    batch_size = args.batch_size
-
-    epochs = args.epochs
-
-    nchannels = args.nchannels
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -89,7 +84,7 @@ if __name__ == "__main__":
     dataset = EquivariantMatrixDataset(db,
                                        pol_cut_num=6,
                                        nbessel=8,
-                                       rcut=5.0,
+                                       rcut=args.rcut,
                                        irreps_sh=Irreps('0e + 1o + 2e'),
                                        device=device
                                        )
@@ -118,7 +113,7 @@ if __name__ == "__main__":
                                                           )
 
     train_loader = DataLoader(train_data,
-                              batch_size=batch_size,
+                              batch_size=args.batch_size,
                               shuffle=True,
                               collate_fn=collate_fn
                               )
@@ -135,7 +130,7 @@ if __name__ == "__main__":
 
     model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
                                      zlist=dataset.z_table,
-                                     nchannels=nchannels,
+                                     nchannels=args.nchannels,
                                      weights=[1,
                                               1,
                                               1,
@@ -158,7 +153,7 @@ if __name__ == "__main__":
             loader=train_loader,
             val_loader=validation_loader,
             test_loader=test_loader,
-            NEPOCHS=epochs,
+            NEPOCHS=args.epochs,
             start_dyn=start_dyn,
             fine_dyn=fine_dyn
             )
