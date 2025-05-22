@@ -1,11 +1,28 @@
 import torch
 from collections import defaultdict
 import logging
+import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s',
-)
+# Logger that logs only to stdout
+console_logger = logging.getLogger('console_logger')
+console_logger.setLevel(logging.INFO)
+console_logger.propagate = False  # prevent message propagation
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+console_handler.setFormatter(console_formatter)
+console_logger.addHandler(console_handler)
+
+# Logger that logs only to file
+file_logger = logging.getLogger('file_logger')
+file_logger.setLevel(logging.INFO)
+file_logger.propagate = False
+
+file_handler = logging.FileHandler('training.log', mode='w')
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+file_handler.setFormatter(file_formatter)
+file_logger.addHandler(file_handler)
 
 
 def validate(model, loader, device):
@@ -26,7 +43,7 @@ def validate(model, loader, device):
             total_loss += loss.item()
 
     avg_loss = total_loss / len(loader)
-    logging.info(f"VAL        Loss =                    {avg_loss:.4f}")
+    console_logger.info(f"VAL        Loss =                    {avg_loss:.4f}")
     return avg_loss
 
 
@@ -57,29 +74,29 @@ def test(model, loader, device, epoch, nepoch):
 
             loss = model.mse_components(Y_pred, Y_true).mean(axis=0).tolist()  # Loss calculation
 
-            ch_zeros = []
-
-            for idx, y_pred_ in enumerate(Y_pred[0]):
-                ch = 0
-                if abs(y_pred_) > 1e-6:
-                    ch = torch.sqrt(torch.tensor(loss[idx]))/y_pred_
-                ch_zeros.append(ch)
-
-            rmse_rel.append(torch.tensor(ch_zeros))
-            y_true_list.append(Y_true[0])
-            y_pred_list.append(Y_pred[0])
+            # ch_zeros = []
+            #
+            # for idx, y_pred_ in enumerate(Y_pred[0]):
+            #     ch = 0
+            #     if abs(y_pred_) > 1e-6:
+            #         ch = torch.sqrt(torch.tensor(loss[idx]))/y_pred_
+            #     ch_zeros.append(ch)
+            #
+            # rmse_rel.append(torch.tensor(ch_zeros))
+            # y_true_list.append(Y_true[0])
+            # y_pred_list.append(Y_pred[0])
 
             error_batches.append(loss)
 
     error_batches = torch.tensor(error_batches)
-    logging.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
-    logging.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
+    console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
+    console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
 
-    rmse_rel = torch.stack(rmse_rel, dim=0)
-    logging.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
-    if epoch == nepoch:
-        with open('failed_test.pkl', 'wb') as g:
-            torch.save([y_true_list, y_pred_list], g)
+    # rmse_rel = torch.stack(rmse_rel, dim=0)
+    # console_logger.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
+    # if epoch == nepoch:
+    #     with open('failed_test.pkl', 'wb') as g:
+    #         torch.save([y_true_list, y_pred_list], g)
     return
 
 
@@ -100,15 +117,15 @@ def nntrain(model,
             counts[top_level] += param.numel()
 
     for block, count in counts.items():
-        logging.info(f"{block:<25}: {count:,} params")
+        console_logger.info(f"{block:<25}: {count:,} params")
 
-    logging.warning(f"{model.count_parameters()}")
+    console_logger.warning(f"{model.count_parameters()}")
 
     optimizer = start_dyn['optimizer'](model.parameters())
     scheduler = start_dyn['scheduler'](optimizer)
 
     error = []
-    logging.info(r"                          " +
+    console_logger.info(r"                          " +
                  "$Y^0_0$    " +
                  "$Y^1_{-1}$ " +
                  "$Y^1_0$    " +
@@ -147,21 +164,23 @@ def nntrain(model,
             mse_components = model.mse_components(Y_pred, Y_true)
             error_batches.append(mse_components.mean(axis=0).tolist())
 
+            file_logger.info(" ".join(f"{x:.3e}" for x in mse_components.mean(axis=0).tolist()))
+
             optimizer.step()  # Update weights
 
             total_loss += loss.item()
 
-        logging.info(f"Epoch {epoch + 1}")
+        console_logger.info(f"Epoch {epoch + 1}")
 
         for param_group in optimizer.param_groups:
-            logging.info(f"LR: {param_group['lr']}")
+            console_logger.info(f"LR: {param_group['lr']}")
 
         error_batches = torch.tensor(error_batches)
 
-        logging.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(dim=0)))
-        logging.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(dim=0)))
+        console_logger.info("TRAIN MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(dim=0)))
+        console_logger.info("TRAIN STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(dim=0)))
 
-        logging.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
+        console_logger.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 
         val_loss = validate(model, val_loader, device)
 
