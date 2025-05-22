@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train an equivariant neural network for ZFS prediction.")
 
-    parser.add_argument('--data_path', type=str, default='train_ZFS_NVE.extxyz', help='Path to input EXTXYZ file')
+    parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input EXTXYZ file')
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training')
     parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
     parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
@@ -80,8 +80,8 @@ if __name__ == "__main__":
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
                                                                                      threshold=1e-4,
-                                                                                     factor=0.9,
-                                                                                     patience=1
+                                                                                     factor=0.95,
+                                                                                     patience=0
                                                                                      ),
                  "START_FINE": START_FINE
                  }

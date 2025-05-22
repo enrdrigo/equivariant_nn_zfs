@@ -38,7 +38,6 @@ def spherical_irreps_to_cartesian(sphmat: torch.Tensor) -> torch.Tensor:
     Output: (batch_size, 3, 3)
     Safe for autograd (no in-place ops).
     """
-    assert sphmat.shape[-1] == 9, "Last dimension must be 9"
 
     def t(data):
         return torch.tensor(data, dtype=sphmat.dtype, device=sphmat.device)
