@@ -36,13 +36,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input EXTXYZ file')
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training')
-    parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
+    parser.add_argument('--epochs', type=int, default=200, help='Number of training epochs')
     parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
 
     args = parser.parse_args()
 
-    db = read(args.data_path, ':')
+    db = read(args.data_path, ':625')
 
     batch_size = args.batch_size
 
