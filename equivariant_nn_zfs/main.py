@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    db = read(args.data_path, ':625')
+    db = read(args.data_path, ':')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -75,8 +75,8 @@ if __name__ == "__main__":
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
                                                                                      threshold=1e-4,
-                                                                                     factor=0.95,
-                                                                                     patience=0
+                                                                                     factor=100 ** (- 2 / args.epochs),
+                                                                                     patience=1
                                                                                      ),
                  "START_FINE": START_FINE
                  }
