@@ -40,10 +40,19 @@ if __name__ == "__main__":
     parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
+    parser.add_argument('--patience', type=int, default=1, help='patience interval for scheduler')
+    parser.add_argument('--restart', type=bool, default=False, help='restart the training from last iteration')
+    # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
 
     args = parser.parse_args()
 
-    db = read(args.data_path, ':')
+    data_path_list = args.data_path.split(':')
+
+    db = read(data_path_list[0], ':1000')
+
+    if len(data_path_list) > 1:
+        for d in data_path_list[1:]:
+            db = db + read(d, ':1000')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -75,8 +84,8 @@ if __name__ == "__main__":
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
                                                                                      threshold=1e-4,
-                                                                                     factor=100 ** (- 2 / args.epochs),
-                                                                                     patience=1
+                                                                                     factor=100 ** (- (args.patience + 2) / args.epochs),
+                                                                                     patience=args.patience
                                                                                      ),
                  "START_FINE": START_FINE
                  }
@@ -128,22 +137,25 @@ if __name__ == "__main__":
                                    collate_fn=collate_fn
                                    )
 
-    model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
-                                     zlist=dataset.z_table,
-                                     nchannels=args.nchannels,
-                                     weights=[1,
-                                              1,
-                                              1,
-                                              1,
-                                              1,
-                                              1,
-                                              1,
-                                              1,
-                                              1
-                                              ],
-                                     device=device,
-                                     irreps_sh=dataset.irreps_sh
-                                     )
+    if args.restart:
+        model = torch.load('checkpoint_final.pth', weights_only=False)
+    else:
+        model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
+                                         zlist=dataset.z_table,
+                                         nchannels=args.nchannels,
+                                         weights=[1,
+                                                  1,
+                                                  1,
+                                                  1,
+                                                  1,
+                                                  1,
+                                                  1,
+                                                  1,
+                                                  1
+                                                  ],
+                                         device=device,
+                                         irreps_sh=dataset.irreps_sh
+                                         )
 
     logging.info(f"{device}")
 
