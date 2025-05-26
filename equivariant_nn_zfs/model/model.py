@@ -13,11 +13,15 @@ class SymmetricMatrixRegressor(nn.Module):
                  nchannels,
                  irreps_sh,
                  weights,
-                 device = None
+                 device=None,
+                 mlp=None
                  ):
         super().__init__()
         self.device = device if device is not None else torch.device('cpu')
         self.to(self.device)
+
+        if mlp is None:
+            mlp = [64, 64, 64]
 
         node_attr_len = len(zlist)
 
@@ -36,14 +40,16 @@ class SymmetricMatrixRegressor(nn.Module):
                                                      node_feat_irreps=node_feat_irreps_start,
                                                      irreps_sh=irreps_sh,
                                                      hidden_irreps=hidden_irreps,
-                                                     node_attr_irreps=node_attr_irreps
+                                                     node_attr_irreps=node_attr_irreps,
+                                                     mlp=mlp
                                                      )
                               )
         self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
                                                      node_feat_irreps=hidden_irreps,
                                                      irreps_sh=irreps_sh,
                                                      hidden_irreps=hidden_irreps,
-                                                     node_attr_irreps=node_attr_irreps
+                                                     node_attr_irreps=node_attr_irreps,
+                                                     mlp=mlp
                                                      )
                               )
 

@@ -10,12 +10,22 @@ from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import nntrain
 from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
 from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+import ast
 
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(message)s',
 )
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', '1', 'y'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0', 'n'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def collate_fn(batch):
     """
@@ -41,23 +51,31 @@ if __name__ == "__main__":
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
     parser.add_argument('--patience', type=int, default=1, help='patience interval for scheduler')
-    parser.add_argument('--restart', type=bool, default=False, help='restart the training from last iteration')
+    parser.add_argument('--restart', type=str2bool, default=False, help='restart the training from last iteration')
+    parser.add_argument('--lr', type=float, default=1e-2, help='starting learning rate')
+    parser.add_argument('--lr_ratio', type=float, default=100, help='ratio of the final lr')
+    parser.add_argument('--mlp', type=str, default=None, help='architecture of the MLP, default [64, 64, 64]')
     # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
 
     args = parser.parse_args()
 
+    if args.mlp is None:
+        mlp = None
+    else:
+        mlp = ast.literal_eval(args.mlp)
+
     data_path_list = args.data_path.split(':')
 
-    db = read(data_path_list[0], ':1000')
+    db = read(data_path_list[0], ':500')
 
     if len(data_path_list) > 1:
         for d in data_path_list[1:]:
-            db = db + read(d, ':1000')
+            db = db + read(d, ':500')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
     lr = {'SGD': 1e-4,
-          'adam': 1e-2
+          'adam': args.lr
           }
 
     START_FINE = -1
@@ -83,8 +101,10 @@ if __name__ == "__main__":
                                                          ),
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
-                                                                                     threshold=1e-4,
-                                                                                     factor=100 ** (- (args.patience + 2) / args.epochs),
+                                                                                     threshold=args.lr/args.lr_ratio,
+                                                                                     factor=args.lr_ratio **
+                                                                                            (- (args.patience + 2) /
+                                                                                             args.epochs),
                                                                                      patience=args.patience
                                                                                      ),
                  "START_FINE": START_FINE
@@ -138,6 +158,7 @@ if __name__ == "__main__":
                                    )
 
     if args.restart:
+        print('restart', args.restart)
         model = torch.load('checkpoint_final.pth', weights_only=False)
     else:
         model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
@@ -154,7 +175,8 @@ if __name__ == "__main__":
                                                   1
                                                   ],
                                          device=device,
-                                         irreps_sh=dataset.irreps_sh
+                                         irreps_sh=dataset.irreps_sh,
+                                         mlp=mlp
                                          )
 
     logging.info(f"{device}")
