@@ -24,6 +24,17 @@ file_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 file_handler.setFormatter(file_formatter)
 file_logger.addHandler(file_handler)
 
+# Logger that logs only to file
+file_validation_logger = logging.getLogger('file_validation_logger')
+file_validation_logger.setLevel(logging.INFO)
+file_validation_logger.propagate = False
+
+file_validation_handler = logging.FileHandler('validation.log', mode='w')
+file_validation_handler.setLevel(logging.INFO)
+file_validation_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+file_validation_handler.setFormatter(file_validation_formatter)
+file_validation_logger.addHandler(file_validation_handler)
+
 
 def validate(model, loader, device):
     model.eval()
@@ -41,19 +52,18 @@ def validate(model, loader, device):
 
             loss = model.loss_fn(Y_pred, Y_true)  # Loss calculation
             total_loss += loss.item()
+            mse_components = model.mse_components(Y_pred, Y_true)
+
+            file_validation_logger.info(" ".join(f"{x:.3e}" for x in mse_components.mean(axis=0).tolist()))
 
     avg_loss = total_loss / len(loader)
     console_logger.info(f"VAL        Loss =                    {avg_loss:.4f}")
     return avg_loss
 
 
-def test(model, loader, device, epoch, nepoch):
+def test(model, loader, device):
 
     model.eval()
-    rmse_rel = []
-
-    y_true_list = []
-    y_pred_list = []
 
     error_batches = []
 
@@ -74,29 +84,12 @@ def test(model, loader, device, epoch, nepoch):
 
             loss = model.mse_components(Y_pred, Y_true).mean(axis=0).tolist()  # Loss calculation
 
-            # ch_zeros = []
-            #
-            # for idx, y_pred_ in enumerate(Y_pred[0]):
-            #     ch = 0
-            #     if abs(y_pred_) > 1e-6:
-            #         ch = torch.sqrt(torch.tensor(loss[idx]))/y_pred_
-            #     ch_zeros.append(ch)
-            #
-            # rmse_rel.append(torch.tensor(ch_zeros))
-            # y_true_list.append(Y_true[0])
-            # y_pred_list.append(Y_pred[0])
-
             error_batches.append(loss)
 
     error_batches = torch.tensor(error_batches)
     console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.mean(axis=0)))
     console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{x:.3e}" for x in error_batches.std(axis=0)))
 
-    # rmse_rel = torch.stack(rmse_rel, dim=0)
-    # console_logger.info("TEST relative RMSE values:" + ", ".join(f"{abs(x):.3e}" for x in rmse_rel.mean(axis=0)))
-    # if epoch == nepoch:
-    #     with open('failed_test.pkl', 'wb') as g:
-    #         torch.save([y_true_list, y_pred_list], g)
     return
 
 
@@ -126,15 +119,16 @@ def nntrain(model,
 
     error = []
     console_logger.info(r"                          " +
-                 "$Y^0_0$    " +
-                 "$Y^1_{-1}$ " +
-                 "$Y^1_0$    " +
-                 "$Y^1_1$    " +
-                 "$Y^2_{-2}$ " +
-                 "$Y^2_{-1}$ " +
-                 "$Y^2_0$    " +
-                 "$Y^2_1$    " +
-                 "$Y^2_1$")
+                        "$Y^0_0$    " +
+                        "$Y^1_{-1}$ " +
+                        "$Y^1_0$    " +
+                        "$Y^1_1$    " +
+                        "$Y^2_{-2}$ " +
+                        "$Y^2_{-1}$ " +
+                        "$Y^2_0$    " +
+                        "$Y^2_1$    " +
+                        "$Y^2_1$"
+                        )
 
     for epoch in range(NEPOCHS):
         error_batches = []
@@ -186,7 +180,7 @@ def nntrain(model,
 
         error.append(torch.tensor(error_batches))
 
-        test(model, test_loader, device, epoch=epoch, nepoch=NEPOCHS-1)
+        test(model, test_loader, device)
 
         scheduler.step(val_loss)
 
