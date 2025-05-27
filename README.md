@@ -1,6 +1,4 @@
-# TODO: FIX IT BETTER
-
-Equivariant Neural Networks for Zero-Field Splitting (ZFS) Prediction
+#Equivariant Neural Networks for Zero-Field Splitting (ZFS) Prediction
 
 Overview
 
