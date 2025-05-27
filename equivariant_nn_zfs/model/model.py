@@ -25,11 +25,11 @@ console_logger.addHandler(console_handler)
 # --- Tensor Regressor ---
 class TensorRegressor(nn.Module):
     def __init__(self,
-                 nbessel: int,
+                 n_bessel: int,
                  zlist,
                  radial_cutoff: float,
                  pol_cut_num: int,
-                 nchannels: int,
+                 n_channels: int,
                  irreps_sh: Irreps,
                  irreps_out: Irreps,
                  weights: list,
@@ -43,7 +43,7 @@ class TensorRegressor(nn.Module):
 
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
-        self.bf = BesselBasis(r_max=radial_cutoff, num_basis=nbessel)
+        self.bf = BesselBasis(r_max=radial_cutoff, num_basis=n_bessel)
 
         self.spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=irreps_sh, normalize=True)
 
@@ -54,16 +54,16 @@ class TensorRegressor(nn.Module):
 
         node_attr_irreps = o3.Irreps([(node_attr_len, (0, 1))])
 
-        node_feat_irreps_start = o3.Irreps(f"{nchannels}x0e")
+        node_feat_irreps_start = o3.Irreps(f"{n_channels}x0e")
 
-        hidden_irreps = (irreps_sh * nchannels).sort()[0].simplify()
+        hidden_irreps = (irreps_sh * n_channels).sort()[0].simplify()
 
         self.node_features = NodeFeaturesStart(node_attr_irreps=node_attr_irreps,
                                                node_feat_irreps=node_feat_irreps_start
                                                )
 
         self.radialemb = nn.ModuleList()
-        self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
+        self.radialemb.append(RadialAngularEmbedding(nbessel=n_bessel,
                                                      node_feat_irreps=node_feat_irreps_start,
                                                      irreps_sh=irreps_sh,
                                                      hidden_irreps=hidden_irreps,
@@ -71,7 +71,7 @@ class TensorRegressor(nn.Module):
                                                      mlp=mlp
                                                      )
                               )
-        self.radialemb.append(RadialAngularEmbedding(nbessel=nbessel,
+        self.radialemb.append(RadialAngularEmbedding(nbessel=n_bessel,
                                                      node_feat_irreps=hidden_irreps,
                                                      irreps_sh=irreps_sh,
                                                      hidden_irreps=hidden_irreps,

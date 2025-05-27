@@ -7,7 +7,7 @@ import logging
 import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
-from equivariant_nn_zfs.train.train import nntrain
+from equivariant_nn_zfs.train.train import train
 from equivariant_nn_zfs.model.model import TensorRegressor
 from equivariant_nn_zfs.dataset.dataset import MinimalDataset
 import ast
@@ -67,11 +67,11 @@ if __name__ == "__main__":
 
     data_path_list = args.data_path.split(':')
 
-    db = read(data_path_list[0], ':500')
+    db = read(data_path_list[0], ':350')
 
     if len(data_path_list) > 1:
         for d in data_path_list[1:]:
-            db = db + read(d, ':500')
+            db = db + read(d, ':350')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -153,13 +153,13 @@ if __name__ == "__main__":
 
     if args.restart:
         print('restart', args.restart)
-        model = torch.load('checkpoint_final.pth', weights_only=False)
+        model = torch.load('checkpoint_model_final.pth', weights_only=False)
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
                                 pol_cut_num=5,
-                                nbessel=8,
+                                n_bessel=8,
                                 zlist=dataset.z_table,
-                                nchannels=args.nchannels,
+                                n_channels=args.nchannels,
                                 weights=[1,
                                          1,
                                          1,
@@ -176,14 +176,14 @@ if __name__ == "__main__":
 
     model = model.to(device)
 
-    nntrain(model=model,
-            loader=train_loader,
-            val_loader=validation_loader,
-            test_loader=test_loader,
-            nepochs=args.epochs,
-            start_dyn=start_dyn,
-            fine_dyn=fine_dyn
-            )
+    train(model=model,
+          loader=train_loader,
+          val_loader=validation_loader,
+          test_loader=test_loader,
+          nepochs=args.epochs,
+          start_dyn=start_dyn,
+          fine_dyn=fine_dyn
+          )
 
     print("\nEvaluating on test set:")
 

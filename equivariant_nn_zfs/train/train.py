@@ -88,15 +88,15 @@ def test(model, loader, device):
     return
 
 
-def nntrain(model,
-            loader,
-            val_loader,
-            test_loader,
-            nepochs,
-            start_dyn,
-            fine_dyn,
-            device=None
-            ):
+def train(model,
+          loader,
+          val_loader,
+          test_loader,
+          nepochs,
+          start_dyn,
+          fine_dyn,
+          device=None
+          ):
     device = device if device is not None else model.device
 
     counts = defaultdict(int)
@@ -171,7 +171,15 @@ def nntrain(model,
 
         scheduler.step(val_loss)
 
-        torch.save(model, "checkpoint.pth")
+        torch.save({
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'scheduler_state': scheduler.state_dict(),
+            'epoch': epoch,
+        }, 'checkpoint.pth')
 
-    torch.save(model, "checkpoint_final.pth")
+        torch.save(model, 'checkpoint_model.pth')
+
+    torch.save(model, 'checkpoint_model_final.pth')
+
     torch.save(torch.stack(error, dim=-1), 'training.pth')
