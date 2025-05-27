@@ -67,11 +67,11 @@ if __name__ == "__main__":
 
     data_path_list = args.data_path.split(':')
 
-    db = read(data_path_list[0], ':350')
+    db = read(data_path_list[0], ':')
 
     if len(data_path_list) > 1:
         for d in data_path_list[1:]:
-            db = db + read(d, ':350')
+            db = db + read(d, ':')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
                                                       ),
                 "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                     mode='min',
-                                                                                    threshold=1e-5,
+                                                                                    min_lr=1e-5,
                                                                                     factor=0.7,
                                                                                     patience=1
                                                                                     ),
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                                                          ),
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
-                                                                                     threshold=args.lr/args.lr_ratio,
+                                                                                     min_lr=args.lr/args.lr_ratio,
                                                                                      factor=args.lr_ratio **
                                                                                             (- (args.patience + 2) /
                                                                                              args.epochs),

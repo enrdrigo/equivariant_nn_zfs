@@ -24,6 +24,7 @@ class NodeFeaturesStart(nn.Module):
                              irreps_out=node_feat_irreps
                              )
 
+
     def forward(self,
                 node_attributes):
         node_attributes = node_attributes.to(self.linear.weight.device)
