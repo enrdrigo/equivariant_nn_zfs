@@ -19,11 +19,12 @@ cd equivariant_nn_zfs
 ```
 Dependencies include:
 
+```
 Python 3.8+
-PyTorch
+torch
 e3nn
-mace (for radial and product modules)
-numpy, scipy (for numerical utilities)
+mace  # for radial and product modules
+```
 Usage
 
 Model Definition
