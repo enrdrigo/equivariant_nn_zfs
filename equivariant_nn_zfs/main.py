@@ -115,7 +115,8 @@ if __name__ == "__main__":
                                        nbessel=8,
                                        rcut=args.rcut,
                                        irreps_sh=Irreps('0e + 1o + 2e'),
-                                       device=device
+                                       device=device,
+                                       irreps_out=Irreps('2e')
                                        )
 
     loader = DataLoader(dataset,
@@ -168,15 +169,12 @@ if __name__ == "__main__":
                                                   1,
                                                   1,
                                                   1,
-                                                  1,
-                                                  1,
-                                                  1,
-                                                  1,
                                                   1
                                                   ],
                                          device=device,
                                          irreps_sh=dataset.irreps_sh,
-                                         mlp=mlp
+                                         mlp=mlp,
+                                         irreps_out=dataset.irreps_out
                                          )
 
     logging.info(f"{device}")
@@ -187,7 +185,7 @@ if __name__ == "__main__":
             loader=train_loader,
             val_loader=validation_loader,
             test_loader=test_loader,
-            NEPOCHS=args.epochs,
+            nepochs=args.epochs,
             start_dyn=start_dyn,
             fine_dyn=fine_dyn
             )
@@ -198,9 +196,9 @@ if __name__ == "__main__":
     errors = []
     # Extracting true and predicted inertia tensor components
     with torch.no_grad():
-        for X, X_v, node_attr, edge_index,  Y_true in test_loader:
-            Y_pred = model(X, X_v, node_attr, edge_index)
-            mse = model.loss_fn(Y_pred, Y_true).item()
+        for vectors, lengths, nodeattr, edgeindex, y_true in loader:
+            y_pred = model(vectors, lengths, nodeattr, edgeindex)
+            mse = model.loss_fn(y_pred, y_true).item()
             errors.append(mse)
 
     mean_mse = np.mean(errors)

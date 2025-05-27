@@ -67,11 +67,10 @@ class Product3body(nn.Module):
 @compile_mode("script")
 class ReadoutL2(nn.Module):
     def __init__(self,
-                 hidden_irreps
+                 hidden_irreps,
+                 out_irreps
                  ):
         super().__init__()
-
-        out_irreps = o3.Irreps("0e + 1o + 2e")
 
         self.linear_readout = Linear(irreps_in=hidden_irreps,
                                      irreps_out=out_irreps

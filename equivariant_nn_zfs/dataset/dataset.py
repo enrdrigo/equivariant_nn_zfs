@@ -4,9 +4,7 @@ from mace import data, modules, tools
 from e3nn.o3 import SphericalHarmonics
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
-from e3nn.io import CartesianTensor
 from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
-import warnings
 
 
 class EquivariantMatrixDataset(Dataset):
@@ -17,6 +15,7 @@ class EquivariantMatrixDataset(Dataset):
                  nbessel,
                  rcut,
                  irreps_sh,
+                 irreps_out,
                  device
                  ):
         self.structures = structures
@@ -24,9 +23,9 @@ class EquivariantMatrixDataset(Dataset):
         self.nbessel = nbessel
         self.rcut = rcut
         self.irreps_sh = irreps_sh
-        cartesian = CartesianTensor('ij=ij')
-        #  warnings.filterwarnings("ignore", category=UserWarning, module="torch.jit._check")
-        self.targets = torch.stack([cartesian_to_spherical_irreps(torch.tensor(s.info['target_L2'].reshape(3, 3))) for s in structures], dim=0)
+        self.irreps_out = irreps_out
+        self.targets = torch.stack([cartesian_to_spherical_irreps(torch.tensor(s.info['target_L2'].reshape(3, 3)),
+                                                                  irreps=irreps_out) for s in structures], dim=0)
         self.device = device
 
         z_table = set()
@@ -60,8 +59,6 @@ class EquivariantMatrixDataset(Dataset):
         node_attr = batch.node_attrs
 
         edge_index = batch.edge_index
-
-        node_attr_len = vectors.shape[0]
 
         cutoff = PolynomialCutoff(r_max=self.rcut, p=self.pol_cut_num)
 

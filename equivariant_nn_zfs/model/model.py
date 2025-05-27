@@ -12,6 +12,7 @@ class SymmetricMatrixRegressor(nn.Module):
                  zlist,
                  nchannels,
                  irreps_sh,
+                 irreps_out,
                  weights,
                  device=None,
                  mlp=None
@@ -68,10 +69,12 @@ class SymmetricMatrixRegressor(nn.Module):
                          )
 
         self.readout = nn.ModuleList()
-        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps,
+                                      out_irreps=irreps_out
                                       )
                             )
-        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps
+        self.readout.append(ReadoutL2(hidden_irreps=hidden_irreps,
+                                      out_irreps=irreps_out
                                       )
                             )
 
