@@ -40,15 +40,13 @@ def validate(model, loader, device):
     model.eval()
     total_loss = 0
     with torch.no_grad():
-        for x, x_v, node_attr, edge_index, y_true in loader:
+        for batches in loader:
+            # PREPARE THE DATA ON THE CORRECT DEVICE
+            batch_data = [data.to(device) for data in batches['batches']]
 
-            y_true = y_true.to(device)
-            x = [xx.to(device) for xx in x]
-            x_v = [xv.to(device) for xv in x_v]
-            node_attr = [na.to(device) for na in node_attr]
-            edge_index = [ei.to(device) for ei in edge_index]
+            y_true = batches['targets'].to(device)
 
-            y_pred = model(x, x_v, node_attr, edge_index)  # Forward pass
+            y_pred = model(batch_data)  # Forward pass
 
             loss = model.loss_fn(y_pred, y_true)  # Loss calculation
 
@@ -71,19 +69,13 @@ def test(model, loader, device):
     error_batches = []
 
     with torch.no_grad():
-        for x, x_v, node_attr, edge_index, y_true in loader:
+        for batches in loader:
+            # PREPARE THE DATA ON THE CORRECT DEVICE
+            batch_data = [data.to(device) for data in batches['batches']]
 
-            y_true = y_true.to(device)
+            y_true = batches['targets'].to(device)
 
-            x = [xx.to(device) for xx in x]
-
-            x_v = [xv.to(device) for xv in x_v]
-
-            node_attr = [na.to(device) for na in node_attr]
-
-            edge_index = [ei.to(device) for ei in edge_index]
-
-            y_pred = model(x, x_v, node_attr, edge_index)  # Forward pass
+            y_pred = model(batch_data)  # Forward pass
 
             loss = model.mse_components(y_pred, y_true).mean(axis=0).tolist()  # Loss calculation
 
@@ -123,17 +115,6 @@ def nntrain(model,
     scheduler = start_dyn['scheduler'](optimizer)
 
     error = []
-    console_logger.info(r"                          " +
-                        "$Y^0_0$    " +
-                        "$Y^1_{-1}$ " +
-                        "$Y^1_0$    " +
-                        "$Y^1_1$    " +
-                        "$Y^2_{-2}$ " +
-                        "$Y^2_{-1}$ " +
-                        "$Y^2_0$    " +
-                        "$Y^2_1$    " +
-                        "$Y^2_1$"
-                        )
 
     for epoch in range(nepochs):
         error_batches = []
@@ -145,23 +126,15 @@ def nntrain(model,
 
             scheduler = fine_dyn['scheduler'](optimizer)
 
-        for x, x_v, node_attr, edge_index, y_true in loader:
-
+        for batches in loader:
             optimizer.zero_grad()  # Zeroing gradients
 
             # PREPARE THE DATA ON THE CORRECT DEVICE
+            batch_data = [data.to(device) for data in batches['batches']]
 
-            y_true = y_true.to(device)
+            y_true = batches['targets'].to(device)
 
-            x = [xx.to(device) for xx in x]
-
-            x_v = [xv.to(device) for xv in x_v]
-
-            node_attr = [na.to(device) for na in node_attr]
-
-            edge_index = [ei.to(device) for ei in edge_index]
-
-            y_pred = model(x, x_v, node_attr, edge_index)  # Forward pass
+            y_pred = model(batch_data)  # Forward pass
 
             loss = model.loss_fn(y_pred, y_true)  # Loss calculation
 

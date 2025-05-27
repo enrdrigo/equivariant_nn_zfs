@@ -1,25 +1,51 @@
 import torch
 from torch import nn
 from e3nn import o3
+from e3nn.o3 import Irreps
 from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
 from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
+from mace import modules
+from e3nn.o3 import SphericalHarmonics
+from mace.modules.radial import BesselBasis
+from mace.modules.radial import PolynomialCutoff
+import logging
+import sys
+
+# Logger that logs only to stdout
+console_logger = logging.getLogger('console_logger_model')
+console_logger.setLevel(logging.INFO)
+console_logger.propagate = False  # prevent message propagation
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+console_handler.setFormatter(console_formatter)
+console_logger.addHandler(console_handler)
 
 
-# --- Symmetric Matrix Regressor ---
-class SymmetricMatrixRegressor(nn.Module):
+# --- Tensor Regressor ---
+class TensorRegressor(nn.Module):
     def __init__(self,
-                 nbessel,
+                 nbessel: int,
                  zlist,
-                 nchannels,
-                 irreps_sh,
-                 irreps_out,
-                 weights,
+                 radial_cutoff: float,
+                 pol_cut_num: int,
+                 nchannels: int,
+                 irreps_sh: Irreps,
+                 irreps_out: Irreps,
+                 weights: list,
                  device=None,
                  mlp=None
                  ):
         super().__init__()
         self.device = device if device is not None else torch.device('cpu')
+
         self.to(self.device)
+
+        self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
+
+        self.bf = BesselBasis(r_max=radial_cutoff, num_basis=nbessel)
+
+        self.spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=irreps_sh, normalize=True)
 
         if mlp is None:
             mlp = [64, 64, 64]
@@ -82,6 +108,28 @@ class SymmetricMatrixRegressor(nn.Module):
 
         self.loss_fn = self.weighted_mse_loss
 
+        if irreps_out == Irreps('0e+1o+2e'):
+            console_logger.info(r"                          " +
+                                "$Y^0_0$    " +
+                                "$Y^1_{-1}$ " +
+                                "$Y^1_0$    " +
+                                "$Y^1_1$    " +
+                                "$Y^2_{-2}$ " +
+                                "$Y^2_{-1}$ " +
+                                "$Y^2_0$    " +
+                                "$Y^2_1$    " +
+                                "$Y^2_1$"
+                                )
+        elif irreps_out == Irreps('2e'):
+            console_logger.info(r"                          " +
+                                "$Y^2_{-2}$ " +
+                                "$Y^2_{-1}$ " +
+                                "$Y^2_0$    " +
+                                "$Y^2_1$    " +
+                                "$Y^2_1$"
+                                )
+
+
     def weighted_mse_loss(self,
                           pred,
                           target
@@ -118,15 +166,33 @@ class SymmetricMatrixRegressor(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+    def get_graph_edge_attributes(self, data):
+
+        vectors, lengths = modules.utils.get_edge_vectors_and_lengths(
+            positions=data["positions"],
+            edge_index=data["edge_index"],
+            shifts=data["shifts"],
+        )
+
+        node_attributes = data.node_attrs
+
+        edge_index = data.edge_index
+
+        vector_descriptor = self.spherical_harmonics(vectors)
+
+        length_descriptor = self.cutoff(lengths) * self.bf(lengths)
+
+        return length_descriptor, vector_descriptor, node_attributes, edge_index
+
     def forward(self,
-                x,
-                x_v,
-                node_attr,
-                edge_index
+                batch_data
                 ):
         outputs = []
 
-        for idx, (lenght_b, edge_attr_b, node_attr_b, edge_index_b) in enumerate(zip(x, x_v, node_attr, edge_index)):
+        for idx, data in enumerate(batch_data):
+
+            length_b, edge_attr_b, node_attr_b, edge_index_b = self.get_graph_edge_attributes(data)
+
             node_attr_b = node_attr_b.detach().requires_grad_()
 
             node_features = self.node_features(node_attr_b)
@@ -135,7 +201,7 @@ class SymmetricMatrixRegressor(nn.Module):
 
             for i in range(2):
 
-                message, sc = self.radialemb[i](lenght_b,
+                message, sc = self.radialemb[i](length_b,
                                                 node_features,
                                                 node_attr_b,
                                                 edge_attr_b,

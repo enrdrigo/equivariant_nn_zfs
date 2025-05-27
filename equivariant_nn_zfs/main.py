@@ -8,8 +8,8 @@ import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import nntrain
-from equivariant_nn_zfs.model.model import SymmetricMatrixRegressor
-from equivariant_nn_zfs.dataset.dataset import EquivariantMatrixDataset
+from equivariant_nn_zfs.model.model import TensorRegressor
+from equivariant_nn_zfs.dataset.dataset import MinimalDataset
 import ast
 
 logging.basicConfig(
@@ -27,17 +27,18 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-def collate_fn(batch):
+
+def collate_fn(batch_):
     """
     Custom collate function to handle variable-length descriptors in the batch.
     """
-    vectors, lengths, nodeattr, edgeindex, targets = zip(*batch)
+    batches, targets_ = zip(*batch_)
 
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
-    targets = torch.stack(targets)
+    targets_ = torch.stack(targets_)
 
-    return list(vectors), list(lengths), list(nodeattr), list(edgeindex), targets
+    return {'batches': list(batches), 'targets': targets_}
 
 
 if __name__ == "__main__":
@@ -110,19 +111,11 @@ if __name__ == "__main__":
                  "START_FINE": START_FINE
                  }
 
-    dataset = EquivariantMatrixDataset(db,
-                                       pol_cut_num=6,
-                                       nbessel=8,
-                                       rcut=args.rcut,
-                                       irreps_sh=Irreps('0e + 1o + 2e'),
-                                       device=device,
-                                       irreps_out=Irreps('2e')
-                                       )
-
-    loader = DataLoader(dataset,
-                        batch_size=1,
-                        shuffle=True
-                        )
+    dataset = MinimalDataset(db,
+                             device=device,
+                             irreps_out=Irreps('2e'),
+                             radial_cutoff=args.rcut
+                             )
 
     total_size = len(dataset)
     test_ratio = 0.1
@@ -162,20 +155,22 @@ if __name__ == "__main__":
         print('restart', args.restart)
         model = torch.load('checkpoint_final.pth', weights_only=False)
     else:
-        model = SymmetricMatrixRegressor(nbessel=dataset.nbessel,
-                                         zlist=dataset.z_table,
-                                         nchannels=args.nchannels,
-                                         weights=[1,
-                                                  1,
-                                                  1,
-                                                  1,
-                                                  1
-                                                  ],
-                                         device=device,
-                                         irreps_sh=dataset.irreps_sh,
-                                         mlp=mlp,
-                                         irreps_out=dataset.irreps_out
-                                         )
+        model = TensorRegressor(radial_cutoff=args.rcut,
+                                pol_cut_num=5,
+                                nbessel=8,
+                                zlist=dataset.z_table,
+                                nchannels=args.nchannels,
+                                weights=[1,
+                                         1,
+                                         1,
+                                         1,
+                                         1
+                                         ],
+                                device=device,
+                                irreps_sh=Irreps('0e + 1o +2e'),
+                                mlp=mlp,
+                                irreps_out=dataset.irreps_out
+                                )
 
     logging.info(f"{device}")
 
@@ -196,9 +191,15 @@ if __name__ == "__main__":
     errors = []
     # Extracting true and predicted inertia tensor components
     with torch.no_grad():
-        for vectors, lengths, nodeattr, edgeindex, y_true in loader:
-            y_pred = model(vectors, lengths, nodeattr, edgeindex)
+        for batches in test_loader:
+            batch_data = batches['batches']
+
+            y_true = batches['targets']
+
+            y_pred = model(batch_data)
+
             mse = model.loss_fn(y_pred, y_true).item()
+
             errors.append(mse)
 
     mean_mse = np.mean(errors)
