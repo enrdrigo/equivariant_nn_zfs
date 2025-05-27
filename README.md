@@ -13,9 +13,10 @@ Modular design with configurable radial basis functions and cutoff functions.
 Separate logging for training and validation with detailed component-wise losses.
 
 Installation
-
+```
 git clone https://github.com/enrdrigo/equivariant_nn_zfs.git
 cd equivariant_nn_zfs
+```
 Dependencies include:
 
 Python 3.8+
