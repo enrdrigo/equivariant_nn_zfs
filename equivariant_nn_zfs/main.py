@@ -103,9 +103,7 @@ if __name__ == "__main__":
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
                                                                                      min_lr=args.lr/args.lr_ratio,
-                                                                                     factor=args.lr_ratio **
-                                                                                            (- (args.patience + 2) /
-                                                                                             args.epochs),
+                                                                                     factor=0.95,
                                                                                      patience=args.patience
                                                                                      ),
                  "START_FINE": START_FINE
