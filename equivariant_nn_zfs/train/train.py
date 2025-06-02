@@ -3,6 +3,8 @@ from collections import defaultdict
 import logging
 import sys
 
+from sympy import total_degree
+
 # Logger that logs only to stdout
 console_logger = logging.getLogger('console_logger')
 console_logger.setLevel(logging.INFO)
@@ -68,6 +70,8 @@ def test(model, loader, device):
 
     error_batches = []
 
+    total_loss = 0
+
     with torch.no_grad():
         for batches in loader:
             # PREPARE THE DATA ON THE CORRECT DEVICE
@@ -77,11 +81,18 @@ def test(model, loader, device):
 
             y_pred = model(batch_data)  # Forward pass
 
-            loss = model.mse_components(y_pred, y_true).mean(axis=0).tolist()  # Loss calculation
+            loss = model.loss_fn(y_pred, y_true)
 
-            error_batches.append(loss)
+            mse_components = model.mse_components(y_pred, y_true).mean(axis=0)  # Loss calculation
+
+            error_batches.append(mse_components.tolist())
+
+            total_loss += loss.item()
 
     error_batches = torch.tensor(error_batches)
+    avg_loss = total_loss / len(loader)
+
+    console_logger.info(f"TEST       Loss =                    {avg_loss:.4f}")
     console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(axis=0)))
     console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(axis=0)))
 

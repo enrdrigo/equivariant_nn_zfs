@@ -53,8 +53,9 @@ if __name__ == "__main__":
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
     parser.add_argument('--patience', type=int, default=1, help='patience interval for scheduler')
     parser.add_argument('--restart', type=str2bool, default=False, help='restart the training from last iteration')
-    parser.add_argument('--lr', type=float, default=1e-2, help='starting learning rate')
-    parser.add_argument('--lr_ratio', type=float, default=100, help='ratio of the final lr')
+    parser.add_argument('--lr', type=float, default=1e-3, help='starting learning rate')
+    parser.add_argument('--lr_factor', type=float, default=0.75, help='ratio of the final lr')
+    parser.add_argument('--min_lr', type=float, default=1e-5, help='ratio of the final lr')
     parser.add_argument('--mlp', type=str, default=None, help='architecture of the MLP, default [64, 64, 64]')
     # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
 
@@ -102,8 +103,8 @@ if __name__ == "__main__":
                                                          ),
                  "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                                                      mode='min',
-                                                                                     min_lr=args.lr/args.lr_ratio,
-                                                                                     factor=0.95,
+                                                                                     min_lr=args.min_lr,
+                                                                                     factor=args.lr_factor,
                                                                                      patience=args.patience
                                                                                      ),
                  "START_FINE": START_FINE
@@ -116,8 +117,8 @@ if __name__ == "__main__":
                              )
 
     total_size = len(dataset)
-    test_ratio = 0.1
-    validation_ratio = 0.1
+    test_ratio = 0.05
+    validation_ratio = 0.05
 
     # Calculate split sizes
     test_size = int(test_ratio * total_size)
@@ -128,9 +129,12 @@ if __name__ == "__main__":
 
     print([train_size, test_size, validation_size])
 
+    generator = torch.Generator().manual_seed(1234)
+
     # Randomly split
     train_data, test_data, validation_data = random_split(dataset,
-                                                          [train_size, test_size, validation_size]
+                                                          [train_size, test_size, validation_size],
+                                                          generator=generator
                                                           )
 
     train_loader = DataLoader(train_data,
