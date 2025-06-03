@@ -10,6 +10,7 @@ from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import train
 from equivariant_nn_zfs.model.model import TensorRegressor
 from equivariant_nn_zfs.dataset.dataset import MinimalDataset
+import random
 import ast
 
 logging.basicConfig(
@@ -45,18 +46,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train an equivariant neural network for ZFS prediction.")
 
-    parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input EXTXYZ file')
+    parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input train EXTXYZ file')
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training')
-    parser.add_argument('--epochs', type=int, default=200, help='Number of training epochs')
-    parser.add_argument('--nchannels', type=int, default=8, help='Number of hidden channels in model')
+    parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
+    parser.add_argument('--nchannels', type=int, default=128, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
-    parser.add_argument('--patience', type=int, default=1, help='patience interval for scheduler')
+    parser.add_argument('--patience', type=int, default=60, help='patience interval for scheduler')
     parser.add_argument('--restart', type=str2bool, default=False, help='restart the training from last iteration')
     parser.add_argument('--lr', type=float, default=1e-3, help='starting learning rate')
     parser.add_argument('--lr_factor', type=float, default=0.75, help='ratio of the final lr')
-    parser.add_argument('--min_lr', type=float, default=1e-5, help='ratio of the final lr')
+    parser.add_argument('--min_lr', type=float, default=1e-6, help='ratio of the final lr')
     parser.add_argument('--mlp', type=str, default=None, help='architecture of the MLP, default [64, 64, 64]')
+    parser.add_argument('--data_test_path', type=str, default='test.extxyz', help='Path to input test EXTXYZ file')
     # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
 
     args = parser.parse_args()
@@ -73,6 +75,8 @@ if __name__ == "__main__":
     if len(data_path_list) > 1:
         for d in data_path_list[1:]:
             db = db + read(d, ':')
+
+    db_test = read(args.data_test_path, ':10')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -116,26 +120,30 @@ if __name__ == "__main__":
                              radial_cutoff=args.rcut
                              )
 
+    dataset_test = MinimalDataset(db_test,
+                                  device=device,
+                                  irreps_out=Irreps('2e'),
+                                  radial_cutoff=args.rcut
+                                  )
+
     total_size = len(dataset)
-    test_ratio = 0.05
     validation_ratio = 0.05
 
     # Calculate split sizes
-    test_size = int(test_ratio * total_size)
 
     validation_size = int(validation_ratio * total_size)
 
-    train_size = total_size - test_size - validation_size  # ensures all data is used
+    train_size = total_size  - validation_size  # ensures all data is used
 
-    print([train_size, test_size, validation_size])
+    print([train_size,  validation_size])
 
     generator = torch.Generator().manual_seed(1234)
 
     # Randomly split
-    train_data, test_data, validation_data = random_split(dataset,
-                                                          [train_size, test_size, validation_size],
-                                                          generator=generator
-                                                          )
+    train_data, validation_data = random_split(dataset,
+                                               [train_size, validation_size],
+                                               generator=generator
+                                               )
 
     train_loader = DataLoader(train_data,
                               batch_size=args.batch_size,
@@ -143,7 +151,7 @@ if __name__ == "__main__":
                               collate_fn=collate_fn
                               )
 
-    test_loader = DataLoader(test_data,
+    test_loader = DataLoader(dataset_test,
                              batch_size=1,
                              collate_fn=collate_fn
                              )

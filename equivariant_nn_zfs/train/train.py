@@ -37,6 +37,17 @@ file_validation_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 file_validation_handler.setFormatter(file_validation_formatter)
 file_validation_logger.addHandler(file_validation_handler)
 
+# Logger that logs only to file
+file_test_logger = logging.getLogger('file_test_logger')
+file_test_logger.setLevel(logging.INFO)
+file_test_logger.propagate = False
+
+file_test_handler = logging.FileHandler('testing.log', mode='w')
+file_test_handler.setLevel(logging.INFO)
+file_test_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+file_test_handler.setFormatter(file_test_formatter)
+file_test_logger.addHandler(file_test_handler)
+
 
 def validate(model, loader, device):
     model.eval()
@@ -95,7 +106,7 @@ def test(model, loader, device):
     console_logger.info(f"TEST       Loss =                    {avg_loss:.4f}")
     console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(axis=0)))
     console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(axis=0)))
-
+    file_test_logger.info(f"{avg_loss:.4f}")
     return
 
 
