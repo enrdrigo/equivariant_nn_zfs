@@ -59,9 +59,17 @@ if __name__ == "__main__":
     parser.add_argument('--min_lr', type=float, default=1e-6, help='ratio of the final lr')
     parser.add_argument('--mlp', type=str, default=None, help='architecture of the MLP, default [64, 64, 64]')
     parser.add_argument('--data_test_path', type=str, default='test.extxyz', help='Path to input test EXTXYZ file')
+    parser.add_argument('--pol_cut_num', type=int, default=5, help='number of cutoff polynomials in the descriptor')
+    parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
+    parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
+
     # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
 
     args = parser.parse_args()
+
+    print("\n🔧 Training Configuration:")
+    for key, value in vars(args).items():
+        print(f"{key:24s}: {value}")
 
     if args.mlp is None:
         mlp = None
@@ -76,7 +84,7 @@ if __name__ == "__main__":
         for d in data_path_list[1:]:
             db = db + read(d, ':')
 
-    db_test = read(args.data_test_path, ':10')
+    db_test = read(args.data_test_path, ':')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
@@ -127,7 +135,7 @@ if __name__ == "__main__":
                                   )
 
     total_size = len(dataset)
-    validation_ratio = 0.05
+    validation_ratio = 0.1
 
     # Calculate split sizes
 
@@ -161,13 +169,15 @@ if __name__ == "__main__":
                                    collate_fn=collate_fn
                                    )
 
+    print(dataset.z_table)
+
     if args.restart:
         print('restart', args.restart)
         model = torch.load('checkpoint_model_final.pth', weights_only=False)
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
-                                pol_cut_num=5,
-                                n_bessel=8,
+                                pol_cut_num=args.pol_cut_num,
+                                n_bessel=args.n_bessel,
                                 zlist=dataset.z_table,
                                 n_channels=args.nchannels,
                                 weights=[1,
@@ -177,7 +187,7 @@ if __name__ == "__main__":
                                          1
                                          ],
                                 device=device,
-                                irreps_sh=Irreps('0e + 1o +2e'),
+                                irreps_sh=Irreps([(1, (l, int(-2*(l%2-0.5)))) for l in range(args.max_l_hidden+1)]),
                                 mlp=mlp,
                                 irreps_out=dataset.irreps_out
                                 )
