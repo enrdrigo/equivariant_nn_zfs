@@ -3,6 +3,7 @@ from collections import defaultdict
 from torch.utils.data import DataLoader, Subset
 import logging
 import sys
+import random
 
 # Logger that logs only to stdout
 console_logger = logging.getLogger('console_logger')
@@ -131,8 +132,11 @@ def train(model,
           start_epoch,
           batch_size,
           num_segments,
+          seed,
           device=None
           ):
+    random.seed(seed)
+
     device = device if device is not None else model.device
 
     test_loader = DataLoader(test_data,
@@ -162,7 +166,9 @@ def train(model,
 
     segment_size = total_data // num_segments
 
-    console_logger.warning(f"{segment_size} segments' size")
+    console_logger.warning(f"{segment_size} data points in segment")
+
+    shuffled = [i for i in range(total_data)]  # initialize the index list of data
 
     for epoch in range(start_epoch, n_epochs):
         error_batches = []
@@ -175,7 +181,10 @@ def train(model,
         end_segment = start_segment + segment_size
         if segment_idx == num_segments - 1: end_segment = total_data
 
-        sub_train = Subset(train_data, range(start_segment, end_segment))
+        if segment_idx == 0:
+            random.shuffle(shuffled)  # shuffle the data every time we loop over the entire dataset
+
+        sub_train = Subset(train_data, shuffled[start_segment: end_segment])  # cycle over separate segments
 
         loader = DataLoader(sub_train,
                             batch_size=batch_size,

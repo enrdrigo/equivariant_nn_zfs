@@ -48,6 +48,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
     parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
     parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
+    parser.add_argument('--seed', type=int, default=123456789, help='seed')
 
     args = parser.parse_args()
 
@@ -96,7 +97,7 @@ if __name__ == "__main__":
 
     train_size = total_size  - validation_size  # ensures all data is used
 
-    generator = torch.Generator().manual_seed(1234)
+    generator = torch.Generator().manual_seed(args.seed)
 
     # Randomly split
     train_data, validation_data = random_split(dataset,
@@ -179,5 +180,6 @@ if __name__ == "__main__":
           scheduler=scheduler,
           start_epoch=start_epoch,
           batch_size=args.batch_size,
-          num_segments=args.num_segments
+          num_segments=args.num_segments,
+          seed=args.seed
           )
