@@ -2,15 +2,13 @@ import mace
 import argparse
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import random_split
 import logging
-import numpy as np
 from ase.io import read
 from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import train
 from equivariant_nn_zfs.model.model import TensorRegressor
 from equivariant_nn_zfs.dataset.dataset import MinimalDataset
-import random
 import ast
 
 logging.basicConfig(
@@ -29,25 +27,12 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def collate_fn(batch_):
-    """
-    Custom collate function to handle variable-length descriptors in the batch.
-    """
-    batches, targets_ = zip(*batch_)
-
-    # We can't stack the descriptors directly because they have different sizes
-    # Instead, we keep them in a list
-    targets_ = torch.stack(targets_)
-
-    return {'batches': list(batches), 'targets': targets_}
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train an equivariant neural network for ZFS prediction.")
 
     parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input train EXTXYZ file')
-    parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training')
+    parser.add_argument('--batch_size', type=int, default=None, help='Batch size for training, default is epochs * #train_set / 100000 + 1')
     parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
     parser.add_argument('--nchannels', type=int, default=128, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
@@ -62,14 +47,9 @@ if __name__ == "__main__":
     parser.add_argument('--pol_cut_num', type=int, default=5, help='number of cutoff polynomials in the descriptor')
     parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
     parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
-
-    # TODO: MODIFY RESTART IN ORDER TO INCLUDE ALSO LR, OPTIMIZER AND SCHEDULER
+    parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
 
     args = parser.parse_args()
-
-    print("\n🔧 Training Configuration:")
-    for key, value in vars(args).items():
-        print(f"{key:24s}: {value}")
 
     if args.mlp is None:
         mlp = None
@@ -84,43 +64,15 @@ if __name__ == "__main__":
         for d in data_path_list[1:]:
             db = db + read(d, ':')
 
+    if args.num_segments is None:
+        args.num_segments = min(len(db) // 500, args.patience) + 1
+
+    if args.batch_size is None:
+        args.batch_size = int(args.epochs // args.num_segments * len(db) / 200000 + 1)
+
     db_test = read(args.data_test_path, ':')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
-
-    lr = {'SGD': 1e-4,
-          'adam': args.lr
-          }
-
-    START_FINE = -1
-
-    fine_dyn = {"optimizer": lambda params: optim.SGD(params,
-                                                      lr=lr['SGD'],
-                                                      momentum=0.2,
-                                                      weight_decay=5e-7,
-                                                      dampening=1e-4
-                                                      ),
-                "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                                    mode='min',
-                                                                                    min_lr=1e-5,
-                                                                                    factor=0.7,
-                                                                                    patience=1
-                                                                                    ),
-                "START_FINE": START_FINE
-                }
-
-    start_dyn = {"optimizer": lambda params: optim.AdamW(params,
-                                                         lr=lr['adam'],
-                                                         weight_decay=5e-7
-                                                         ),
-                 "scheduler": lambda optimizer: optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                                     mode='min',
-                                                                                     min_lr=args.min_lr,
-                                                                                     factor=args.lr_factor,
-                                                                                     patience=args.patience
-                                                                                     ),
-                 "START_FINE": START_FINE
-                 }
 
     dataset = MinimalDataset(db,
                              device=device,
@@ -135,15 +87,14 @@ if __name__ == "__main__":
                                   )
 
     total_size = len(dataset)
-    validation_ratio = 0.1
+
+    validation_ratio = 0.05
 
     # Calculate split sizes
 
     validation_size = int(validation_ratio * total_size)
 
     train_size = total_size  - validation_size  # ensures all data is used
-
-    print([train_size,  validation_size])
 
     generator = torch.Generator().manual_seed(1234)
 
@@ -153,27 +104,32 @@ if __name__ == "__main__":
                                                generator=generator
                                                )
 
-    train_loader = DataLoader(train_data,
-                              batch_size=args.batch_size,
-                              shuffle=True,
-                              collate_fn=collate_fn
-                              )
+    optimizer_lambda = lambda parameters : optim.AdamW(parameters,
+                                                       lr=args.lr,
+                                                       weight_decay=5e-7
+                                                       )
 
-    test_loader = DataLoader(dataset_test,
-                             batch_size=1,
-                             collate_fn=collate_fn
-                             )
-
-    validation_loader = DataLoader(validation_data,
-                                   batch_size=1,
-                                   collate_fn=collate_fn
-                                   )
-
-    print(dataset.z_table)
+    scheduler_lambda = lambda optimizer_ : optim.lr_scheduler.ReduceLROnPlateau(optimizer_,
+                                                                                mode='min',
+                                                                                min_lr=args.min_lr,
+                                                                                factor=args.lr_factor,
+                                                                                patience=args.patience
+                                                                                )
 
     if args.restart:
-        print('restart', args.restart)
-        model = torch.load('checkpoint_model_final.pth', weights_only=False)
+        model = torch.load('checkpoint_model.pth', weights_only=False)
+
+        checkpoint = torch.load('checkpoint.pth', map_location=device)
+
+        optimizer = optimizer_lambda(model.parameters())
+
+        scheduler = scheduler_lambda(optimizer)
+
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+
+        scheduler.load_state_dict(checkpoint['scheduler_state'])
+
+        start_epoch = checkpoint['epoch'] + 1
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
                                 pol_cut_num=args.pol_cut_num,
@@ -192,35 +148,36 @@ if __name__ == "__main__":
                                 irreps_out=dataset.irreps_out
                                 )
 
-    logging.info(f"{device}")
+        start_epoch = 0
+
+        optimizer = optimizer_lambda(model.parameters())
+
+        scheduler = scheduler_lambda(optimizer)
+
+    logging.info("\n🔧 Training Configuration:")
+    for key, value in vars(args).items():
+        logging.info(f"{key:24s}: {value}")
+
+    logging.info(f"{'test set size':24s}: {len(dataset_test)}")
+
+    logging.info(f"{'train set size':24s}: {len(train_data)}")
+
+    logging.info(f"{'validation set size':24s}: {len(validation_data)}")
+
+    logging.info(f"{'species':24s}: {str(dataset.z_table)}")
+
+    logging.info(f"{'device':24s}: {device}")
 
     model = model.to(device)
 
     train(model=model,
-          loader=train_loader,
-          val_loader=validation_loader,
-          test_loader=test_loader,
-          nepochs=args.epochs,
-          start_dyn=start_dyn,
-          fine_dyn=fine_dyn
+          train_data=train_data,
+          val_data=validation_data,
+          test_data=dataset_test,
+          n_epochs=args.epochs,
+          optimizer=optimizer,
+          scheduler=scheduler,
+          start_epoch=start_epoch,
+          batch_size=args.batch_size,
+          num_segments=args.num_segments
           )
-
-    print("\nEvaluating on test set:")
-
-    model.eval()
-    errors = []
-    # Extracting true and predicted inertia tensor components
-    with torch.no_grad():
-        for batches in test_loader:
-            batch_data = batches['batches']
-
-            y_true = batches['targets']
-
-            y_pred = model(batch_data)
-
-            mse = model.loss_fn(y_pred, y_true).item()
-
-            errors.append(mse)
-
-    mean_mse = np.mean(errors)
-    print(f"Test Mean Squared Error (MSE): {mean_mse:.6f}")

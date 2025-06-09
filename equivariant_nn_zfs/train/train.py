@@ -1,15 +1,15 @@
 import torch
 from collections import defaultdict
+from torch.utils.data import DataLoader, Subset
 import logging
 import sys
-
-from sympy import total_degree
 
 # Logger that logs only to stdout
 console_logger = logging.getLogger('console_logger')
 console_logger.setLevel(logging.INFO)
 console_logger.propagate = False  # prevent message propagation
 console_handler = logging.StreamHandler(sys.stdout)
+
 console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 console_handler.setFormatter(console_formatter)
@@ -48,8 +48,19 @@ file_test_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 file_test_handler.setFormatter(file_test_formatter)
 file_test_logger.addHandler(file_test_handler)
 
+def collate_fn(batch_):
+    """
+    Custom collate function to handle variable-length descriptors in the batch.
+    """
+    batches, targets_ = zip(*batch_)
 
-def validate(model, loader, device):
+    # We can't stack the descriptors directly because they have different sizes
+    # Instead, we keep them in a list
+    targets_ = torch.stack(targets_)
+
+    return {'batches': list(batches), 'targets': targets_}
+
+def validate(epoch, model, loader, device):
     model.eval()
     total_loss = 0
     with torch.no_grad():
@@ -67,7 +78,7 @@ def validate(model, loader, device):
 
             mse_components = model.mse_components(y_pred, y_true)
 
-            file_validation_logger.info(" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
+            file_validation_logger.info(f"{epoch:.3e}  "+" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
 
     avg_loss = total_loss / len(loader)
 
@@ -75,7 +86,7 @@ def validate(model, loader, device):
     return avg_loss
 
 
-def test(model, loader, device):
+def test(epoch, model, loader, device):
 
     model.eval()
 
@@ -104,22 +115,35 @@ def test(model, loader, device):
     avg_loss = total_loss / len(loader)
 
     console_logger.info(f"TEST       Loss =                    {avg_loss:.4f}")
-    console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(axis=0)))
-    console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(axis=0)))
-    file_test_logger.info(f"{avg_loss:.4f}")
+    console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(dim=0)))
+    console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
+    file_test_logger.info(f"{epoch:.3e}  "+f"{avg_loss:.4f}")
     return
 
 
 def train(model,
-          loader,
-          val_loader,
-          test_loader,
-          nepochs,
-          start_dyn,
-          fine_dyn,
+          train_data,
+          val_data,
+          test_data,
+          n_epochs,
+          optimizer,
+          scheduler,
+          start_epoch,
+          batch_size,
+          num_segments,
           device=None
           ):
     device = device if device is not None else model.device
+
+    test_loader = DataLoader(test_data,
+                             batch_size=1,
+                             collate_fn=collate_fn
+                             )
+
+    val_loader = DataLoader(val_data,
+                                   batch_size=1,
+                                   collate_fn=collate_fn
+                                   )
 
     counts = defaultdict(int)
     for name, param in model.named_parameters():
@@ -128,27 +152,41 @@ def train(model,
             counts[top_level] += param.numel()
 
     for block, count in counts.items():
-        console_logger.info(f"{block:<25}: {count:,} params")
+        console_logger.info(f"{block:24s}: {count:,} params")
 
     console_logger.warning(f"{model.count_parameters()}")
 
-    optimizer = start_dyn['optimizer'](model.parameters())
-
-    scheduler = start_dyn['scheduler'](optimizer)
-
     error = []
 
-    for epoch in range(nepochs):
+    total_data = len(train_data)
+
+    segment_size = total_data // num_segments
+
+    console_logger.warning(f"{segment_size} segments' size")
+
+    for epoch in range(start_epoch, n_epochs):
         error_batches = []
 
         total_loss = 0
 
-        if epoch == start_dyn['START_FINE']:
-            optimizer = fine_dyn['optimizer'](model.parameters())
+        # Cycle through segments: 0,1,2,0,1,2,...
+        segment_idx = epoch % num_segments
+        start_segment = segment_idx * segment_size
+        end_segment = start_segment + segment_size
+        if segment_idx == num_segments - 1: end_segment = total_data
 
-            scheduler = fine_dyn['scheduler'](optimizer)
+        sub_train = Subset(train_data, range(start_segment, end_segment))
+
+        loader = DataLoader(sub_train,
+                            batch_size=batch_size,
+                            shuffle=True,
+                            collate_fn=collate_fn
+                            )
+
+        console_logger.info(f"Epoch {epoch + 1}: using segment {segment_idx + 1} of {num_segments} (data {start_segment}-{end_segment - 1})")
 
         for batches in loader:
+
             optimizer.zero_grad()  # Zeroing gradients
 
             # PREPARE THE DATA ON THE CORRECT DEVICE
@@ -166,13 +204,11 @@ def train(model,
 
             error_batches.append(mse_components.mean(axis=0).tolist())
 
-            file_logger.info(" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
+            file_logger.info(f"{epoch:.3e}  "+" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
 
             optimizer.step()  # Update weights
 
             total_loss += loss.item()
-
-        console_logger.info(f"Epoch {epoch + 1}")
 
         for param_group in optimizer.param_groups:
             console_logger.info(f"LR: {param_group['lr']}")
@@ -185,11 +221,11 @@ def train(model,
 
         console_logger.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 
-        val_loss = validate(model, val_loader, device)
+        val_loss = validate(epoch, model, val_loader, device)
 
         error.append(torch.tensor(error_batches))
 
-        test(model, test_loader, device)
+        test(epoch, model, test_loader, device)
 
         scheduler.step(val_loss)
 
