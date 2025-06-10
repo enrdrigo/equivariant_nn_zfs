@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
     console_logger.info(f"{'device':24s}: {device}")
 
-    console_logger.info(f"{'# of parameters updates':24s}: {len(train_data)//args.batch_size//args.num_segments*args.epochs}")
+    console_logger.info(f"{'# of parameters updates':24s}: {int(len(train_data)/args.batch_size/args.num_segments*args.epochs)}")
 
     model = model.to(device)
 
