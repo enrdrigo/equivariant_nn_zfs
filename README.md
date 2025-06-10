@@ -82,7 +82,6 @@ Optional Arguments
 ## 📊 Outputs
 - ``checkpoint_model.pth``: Latest model weights
 - ``checkpoint.pth``: Full training state (model + optimizer + scheduler)
-- ``training.pth``: Collected training losses
 - ``training.log``, ``validation.log``, ``testing.log``: Detailed logs
 
 
@@ -90,7 +89,6 @@ Code Structure
 
 - model.py: Contains the TensorRegressor class implementing the equivariant neural network.
 - train.py: Training and evaluation loop implementations with logging and checkpointing.
-- utils.py: Helper functions and utilities.
 
 Contributions and issues are welcome! Please open a pull request or issue on GitHub.
 
