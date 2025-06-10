@@ -25,55 +25,74 @@ torch
 e3nn
 mace  # for radial and product modules
 ```
+---
+## 🚀 Features
+
+- Tensor regression model using E(3)-equivariant operations
+- Flexible training with:
+  - Cyclic training over data segments
+  - Adaptive learning rate scheduling
+  - Model checkpointing & logging
+- Support for `.extxyz` molecular datasets (via ASE)
+- Automatic batching, segmenting, and device selection
+- Minimal dataset interface (`MinimalDataset`)
+- Fine-grained logging (train/validation/test losses separately)
+
+---
+
+📁 Repository Structure
+```
+equivariant_nn_zfs/
+│
+├── train/                  # Training loop and validation logic
+│   └── train.py
+├── model/                  # Equivariant tensor regression model
+│   └── model.py
+├── dataset/                # Dataset and descriptor processing
+│   └── dataset.py
+├── tools/                # tools for the evaluation of the model
+│   └── embedding.py
+│   └── prod.py
+│   └── contract.py
+├── d_test.extxyz             # Example test dataset
+├── d_train.extxyz            # Example training dataset
+└── README.md
+```
+---
 Usage
 
-Model Definition
 ```
-from model import TensorRegressor
-import torch
-from e3nn.o3 import Irreps
-
-model = TensorRegressor(
-
-    nbessel=6,
-    zlist=[1, 6, 8],  # Example atomic numbers
-    radial_cutoff=5.0,
-    pol_cut_num=5,
-    nchannels=16,
-    irreps_sh=Irreps("0e+1o+2e"),
-    irreps_out=Irreps("2e"),
-    weights=[1.0]*9
-)
+python main.py \
+  --data_path train.extxyz \
+  --data_test_path test.extxyz \
+  --epochs 1000 \
+  --rcut 6.0 \
+  --nchannels 128 \
+  --num_segments 5 \
+  --batch_size 32 \
+  --use_cuda \
+  --mlp "[64, 64, 64]"
 ```
-Training
-Use the provided nntrain function for training:
-```
-nntrain(
-    model=model,
-    loader=train_loader,
-    val_loader=val_loader,
-    test_loader=test_loader,
-    nepochs=100,
-    start_dyn=start_dynamics_config,
-    fine_dyn=fine_dynamics_config,
-    device=torch.device('cuda')
-)
-```
-Logging
+Optional Arguments
 
-Training logs are saved in training.log
-Validation logs are saved in validation.log
-Console outputs show epoch progress, losses, and learning rates
-Checkpoints & Resume Training
+- ``--restart``: Resume from checkpoint
+- ``--patience``: Patience for LR scheduler
+- ``--lr``, ``--lr_factor``, ``--min_lr``: Learning rate controls
+- ``--num_segments``, ``--len_segment``: For cyclic training over subsets
+- ``--max_l_hidden``: Maximum l for spherical harmonics in hidden layers
 
-Checkpoints are saved as checkpoint_model.pth and checkpoint_final.pth.
-The repository supports saving/loading of model states and optimizer/scheduler states for seamless training restarts.
+📊 Outputs
+- ``checkpoint_model.pth``: Latest model weights
+- ``checkpoint.pth``: Full training state (model + optimizer + scheduler)
+- ``training.pth``: Collected training losses
+- ``training.log``, ``validation.log``, ``testing.log``: Detailed logs
+
+
 Code Structure
 
-model.py: Contains the TensorRegressor class implementing the equivariant neural network.
-train.py: Training and evaluation loop implementations with logging and checkpointing.
-utils.py: Helper functions and utilities.
-data/: Data loaders and preprocessing (not included here, user should provide).
+- model.py: Contains the TensorRegressor class implementing the equivariant neural network.
+- train.py: Training and evaluation loop implementations with logging and checkpointing.
+- utils.py: Helper functions and utilities.
 
 Contributions and issues are welcome! Please open a pull request or issue on GitHub.
 

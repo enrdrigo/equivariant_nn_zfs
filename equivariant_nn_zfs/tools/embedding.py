@@ -9,7 +9,6 @@ from mace.modules.irreps_tools import reshape_irreps
 from mace.tools.scatter import scatter_sum
 from e3nn.util.jit import compile_mode
 
-# TODO: IN INPUT I WANT ONLY POSITIONS NOT FEATURES!
 
 
 @compile_mode("script")
