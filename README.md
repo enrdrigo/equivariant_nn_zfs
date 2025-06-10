@@ -1,18 +1,28 @@
 # Equivariant Neural Networks for Zero-Field Splitting (ZFS) Prediction
 
-Overview
+## Overview
 
 equivariant_nn_zfs is a PyTorch-based deep learning framework implementing equivariant neural networks designed to predict tensor properties related to zero-field splitting (ZFS) in materials or molecules.
 Leveraging equivariant representations (via e3nn), this repository focuses on accurate, symmetry-aware modeling of tensorial data.
 
-Features
+## 🚀 Features
 
 Equivariant architecture utilizing spherical harmonics and irreducible representations (Irreps).
 Custom radial and angular embeddings tailored for three-body interactions.
 Modular design with configurable radial basis functions and cutoff functions.
 Separate logging for training and validation with detailed component-wise losses.
 
-Installation
+- Tensor regression model using E(3)-equivariant operations
+- Flexible training with:
+  - Cyclic training over data segments
+  - Adaptive learning rate scheduling
+  - Model checkpointing & logging
+- Support for `.extxyz` molecular datasets (via ASE)
+- Automatic batching, segmenting, and device selection
+- Minimal dataset interface (`MinimalDataset`)
+- Fine-grained logging (train/validation/test losses separately)
+
+## 📦 Installation
 ```
 git clone https://github.com/enrdrigo/equivariant_nn_zfs.git
 cd equivariant_nn_zfs
@@ -25,22 +35,10 @@ torch
 e3nn
 mace  # for radial and product modules
 ```
----
-## 🚀 Features
-
-- Tensor regression model using E(3)-equivariant operations
-- Flexible training with:
-  - Cyclic training over data segments
-  - Adaptive learning rate scheduling
-  - Model checkpointing & logging
-- Support for `.extxyz` molecular datasets (via ASE)
-- Automatic batching, segmenting, and device selection
-- Minimal dataset interface (`MinimalDataset`)
-- Fine-grained logging (train/validation/test losses separately)
 
 ---
 
-📁 Repository Structure
+## 📁 Repository Structure
 ```
 equivariant_nn_zfs/
 │
@@ -81,7 +79,7 @@ Optional Arguments
 - ``--num_segments``, ``--len_segment``: For cyclic training over subsets
 - ``--max_l_hidden``: Maximum l for spherical harmonics in hidden layers
 
-📊 Outputs
+## 📊 Outputs
 - ``checkpoint_model.pth``: Latest model weights
 - ``checkpoint.pth``: Full training state (model + optimizer + scheduler)
 - ``training.pth``: Collected training losses
