@@ -145,9 +145,9 @@ def train(model,
                              )
 
     val_loader = DataLoader(val_data,
-                                   batch_size=1,
-                                   collate_fn=collate_fn
-                                   )
+                            batch_size=1,
+                            collate_fn=collate_fn
+                            )
 
     counts = defaultdict(int)
     for name, param in model.named_parameters():
