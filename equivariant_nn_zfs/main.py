@@ -2,6 +2,7 @@ import mace
 import argparse
 import torch
 import torch.optim as optim
+from sympy.physics.units import length
 from torch.utils.data import random_split
 import logging
 from ase.io import read
@@ -51,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
     parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
     parser.add_argument('--len_segment', type=int, default=500, help='length of the segment')
+    parser.add_argument('--length_test', type=str, default='', help='length of test set')
     parser.add_argument('--seed', type=int, default=123456789, help='seed')
 
     args = parser.parse_args()
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     if args.batch_size is None:
         args.batch_size = int(args.epochs // args.num_segments * len(db) / 200000 + 1)
 
-    db_test = read(args.data_test_path, ':')
+    db_test = read(args.data_test_path, ':'+args.length_test)
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
