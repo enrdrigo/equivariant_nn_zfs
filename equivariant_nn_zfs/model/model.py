@@ -190,6 +190,10 @@ class TensorRegressor(nn.Module):
 
         vector_descriptor = self.spherical_harmonics(vectors)
 
+        self.cutoff.r_max = self.cutoff.r_max.to(self.device)
+
+        self.bf.r_max = self.bf.r_max.to(self.device)
+
         length_descriptor = self.cutoff(lengths) * self.bf(lengths)
 
         return length_descriptor, vector_descriptor, node_attributes, edge_index
