@@ -141,14 +141,12 @@ def train(model,
 
     test_loader = DataLoader(test_data,
                              batch_size=1,
-                             collate_fn=collate_fn,
-                             pin_memory=True
+                             collate_fn=collate_fn
                              )
 
     val_loader = DataLoader(val_data,
                             batch_size=1,
-                            collate_fn=collate_fn,
-                            pin_memory=True
+                            collate_fn=collate_fn
                             )
 
     counts = defaultdict(int)
@@ -191,8 +189,7 @@ def train(model,
         loader = DataLoader(sub_train,
                             batch_size=batch_size,
                             shuffle=True,
-                            collate_fn=collate_fn,
-                            pin_memory=True
+                            collate_fn=collate_fn
                             )
 
         console_logger.info(f"Epoch {epoch + 1}: using segment {segment_idx + 1} of {num_segments} (data {start_segment}-{end_segment - 1})")
