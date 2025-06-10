@@ -39,8 +39,6 @@ class TensorRegressor(nn.Module):
         super().__init__()
         self.device = device if device is not None else torch.device('cpu')
 
-        radial_cutoff = radial_cutoff.to(self.device)
-
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
         self.bf = BesselBasis(r_max=radial_cutoff, num_basis=n_bessel)
@@ -175,6 +173,8 @@ class TensorRegressor(nn.Module):
             edge_index=data["edge_index"],
             shifts=data["shifts"],
         )
+
+        print(self.device)
 
         vectors = vectors.to(self.device)
 
