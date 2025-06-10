@@ -194,6 +194,8 @@ class TensorRegressor(nn.Module):
 
         self.bf.r_max = self.bf.r_max.to(self.device)
 
+        self.cutoff.p = self.cutoff.p.to(self.cutoff.r_max.device).to(torch.int)
+
         length_descriptor = self.cutoff(lengths) * self.bf(lengths)
 
         return length_descriptor, vector_descriptor, node_attributes, edge_index
