@@ -37,7 +37,7 @@ class TensorRegressor(nn.Module):
                  mlp=None
                  ):
         super().__init__()
-        self.device = device if device is not None else torch.device('cpu')
+        self.device = device
 
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 

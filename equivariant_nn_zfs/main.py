@@ -10,11 +10,13 @@ from equivariant_nn_zfs.train.train import train
 from equivariant_nn_zfs.model.model import TensorRegressor
 from equivariant_nn_zfs.dataset.dataset import MinimalDataset
 import ast
+import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s',
-)
+# Logger that logs only to stdout
+console_logger = logging.getLogger('console_logger')
+console_logger.setLevel(logging.INFO)
+console_logger.propagate = False  # prevent message propagation
+console_handler = logging.StreamHandler(sys.stdout)
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -48,6 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
     parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
     parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
+    parser.add_argument('--len_segment', type=int, default=500, help='length of the segment')
     parser.add_argument('--seed', type=int, default=123456789, help='seed')
 
     args = parser.parse_args()
@@ -66,7 +69,10 @@ if __name__ == "__main__":
             db = db + read(d, ':')
 
     if args.num_segments is None:
-        args.num_segments = min(len(db) // 500, args.patience) + 1
+
+        if min(len(db) // args.len_segment, args.patience) != 0:
+            args.num_segments = min(len(db) // args.len_segment, args.patience)
+        else: args.num_segments = 1
 
     if args.batch_size is None:
         args.batch_size = int(args.epochs // args.num_segments * len(db) / 200000 + 1)
@@ -155,19 +161,21 @@ if __name__ == "__main__":
 
         scheduler = scheduler_lambda(optimizer)
 
-    logging.info("\n🔧 Training Configuration:")
+    console_logger.info("\n🔧 Training Configuration:")
     for key, value in vars(args).items():
-        logging.info(f"{key:24s}: {value}")
+        console_logger.info(f"{key:24s}: {value}")
 
-    logging.info(f"{'test set size':24s}: {len(dataset_test)}")
+    console_logger.info(f"{'test set size':24s}: {len(dataset_test)}")
 
-    logging.info(f"{'train set size':24s}: {len(train_data)}")
+    console_logger.info(f"{'train set size':24s}: {len(train_data)}")
 
-    logging.info(f"{'validation set size':24s}: {len(validation_data)}")
+    console_logger.info(f"{'validation set size':24s}: {len(validation_data)}")
 
-    logging.info(f"{'species':24s}: {str(dataset.z_table)}")
+    console_logger.info(f"{'species':24s}: {str(dataset.z_table)}")
 
-    logging.info(f"{'device':24s}: {device}")
+    console_logger.info(f"{'device':24s}: {device}")
+
+    console_logger.info(f"{'# of parameters updates':24s}: {len(train_data)//args.batch_size//args.num_segments*args.epochs}")
 
     model = model.to(device)
 
