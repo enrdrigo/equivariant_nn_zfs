@@ -43,7 +43,11 @@ class TensorRegressor(nn.Module):
 
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
+        self.cutoff = self.cutoff.to(self.device)
+
         self.bf = BesselBasis(r_max=radial_cutoff, num_basis=n_bessel)
+
+        self.bf = self.bf.to(self.device)
 
         self.spherical_harmonics = SphericalHarmonics(irreps_in='1o', irreps_out=irreps_sh, normalize=True)
 
