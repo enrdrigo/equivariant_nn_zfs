@@ -173,20 +173,20 @@ class TensorRegressor(nn.Module):
             edge_index=data["edge_index"],
             shifts=data["shifts"],
         )
-
-        print(self.device)
-
-        vectors = vectors.to(self.device)
-
-        lengths = lengths.to(self.device)
+        #
+        # print(self.device)
+        #
+        # vectors = vectors.to(self.device)
+        #
+        # lengths = lengths.to(self.device)
 
         node_attributes = data.node_attrs
-
-        node_attributes = node_attributes.to(self.device)
+        #
+        # node_attributes = node_attributes.to(self.device)
 
         edge_index = data.edge_index
-
-        edge_index = edge_index.to(self.device)
+        #
+        # edge_index = edge_index.to(self.device)
 
         vector_descriptor = self.spherical_harmonics(vectors)
 
