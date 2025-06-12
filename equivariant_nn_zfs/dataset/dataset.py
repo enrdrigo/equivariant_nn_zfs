@@ -84,7 +84,7 @@ def collate_fn_eval(batch_):
     """
     Custom collate function to handle variable-length descriptors in the batch.
     """
-    batches, targets_ = zip(*batch_)
+    batches = zip(*batch_)
 
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
