@@ -44,3 +44,40 @@ class MinimalDataset(Dataset):
         target = self.targets[idx]
 
         return batch, target
+
+class EvaluationDataset(Dataset):
+
+    def __init__(self,
+                 structures,
+                 irreps_out,
+                 radial_cutoff,
+                 device
+                 ):
+        self.radial_cutoff = radial_cutoff
+        self.structures = structures
+        self.irreps_out = irreps_out
+        self.device = device
+
+        z_table = set()
+        for s in structures:
+            s_z_table = s.get_atomic_numbers()
+            z_table.update(s_z_table)
+        self.z_table = tools.AtomicNumberTable(list(z_table))
+
+    def __len__(self):
+        return len(self.structures)
+
+    def __getitem__(self, idx):
+        struct = self.structures[idx]
+
+        config = data.Configuration(
+            atomic_numbers=struct.numbers,
+            positions=struct.positions,
+            properties={'positions': 'positions'},
+            property_weights={'positions': 1}
+        )
+
+        # we handle configurations using the AtomicData class
+        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+
+        return batch

@@ -2,7 +2,6 @@ import mace
 import argparse
 import torch
 import torch.optim as optim
-from sympy.physics.units import length
 from torch.utils.data import random_split
 import logging
 from ase.io import read
