@@ -49,13 +49,11 @@ class EvaluationDataset(Dataset):
 
     def __init__(self,
                  structures,
-                 irreps_out,
                  radial_cutoff,
                  device
                  ):
         self.radial_cutoff = radial_cutoff
         self.structures = structures
-        self.irreps_out = irreps_out
         self.device = device
 
         z_table = set()
