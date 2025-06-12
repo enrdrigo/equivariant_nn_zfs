@@ -79,3 +79,14 @@ class EvaluationDataset(Dataset):
         batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
 
         return batch
+
+def collate_fn_eval(batch_):
+    """
+    Custom collate function to handle variable-length descriptors in the batch.
+    """
+    batches, targets_ = zip(*batch_)
+
+    # We can't stack the descriptors directly because they have different sizes
+    # Instead, we keep them in a list
+
+    return {'batches': list(batches)}
