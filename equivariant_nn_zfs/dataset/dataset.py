@@ -62,21 +62,26 @@ class EvaluationDataset(Dataset):
             z_table.update(s_z_table)
         self.z_table = tools.AtomicNumberTable(list(z_table))
 
+        # Precompute all AtomicData
+        self.precomputed = []
+        for s in structures:
+            config = data.Configuration(
+                atomic_numbers=s.numbers,
+                positions=s.positions,
+                properties={'positions': 'positions'},
+                property_weights={'positions': 1}
+            )
+            atomic_data = data.AtomicData.from_config(
+                config, z_table=self.z_table, cutoff=self.radial_cutoff
+            )
+            self.precomputed.append(atomic_data)
+
     def __len__(self):
         return len(self.structures)
 
     def __getitem__(self, idx):
-        struct = self.structures[idx]
-
-        config = data.Configuration(
-            atomic_numbers=struct.numbers,
-            positions=struct.positions,
-            properties={'positions': 'positions'},
-            property_weights={'positions': 1}
-        )
-
         # we handle configurations using the AtomicData class
-        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+        batch = self.precomputed[idx]
 
         return batch
 
