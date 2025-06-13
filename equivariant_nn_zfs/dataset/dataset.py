@@ -69,8 +69,8 @@ class EvaluationDataset(Dataset):
         struct = self.structures[idx]
 
         config = data.Configuration(
-            atomic_numbers=struct.numbers,
-            positions=struct.positions,
+            atomic_numbers=struct.numbers.to(device=self.device),
+            positions=struct.positions.to(device=self.device),
             properties={'positions': 'positions'},
             property_weights={'positions': 1}
         )
