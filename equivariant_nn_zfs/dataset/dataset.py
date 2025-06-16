@@ -36,6 +36,8 @@ class MinimalDataset(Dataset):
         config = data.Configuration(
             atomic_numbers=struct.numbers,
             positions=struct.positions,
+            cell=struct.cell,
+            pbc=struct.pbc,
             properties={'positions': 'positions'},
             property_weights={'positions': 1}
         )
@@ -82,6 +84,8 @@ class EvaluationDataset(Dataset):
         config = data.Configuration(
             atomic_numbers=struct.numbers,
             positions=struct.positions,
+            cell=struct.cell,
+            pbc=struct.pbc,
             properties={'positions': 'positions'},
             property_weights={'positions': 1}
         )
