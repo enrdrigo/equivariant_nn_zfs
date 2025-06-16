@@ -2,6 +2,8 @@ import torch
 from torch.utils.data import Dataset
 from mace import data, tools
 from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
+from mace.tools.torch_geometric import Batch
+from mace.tools.torch_geometric.data import Data
 
 
 class MinimalDataset(Dataset):
@@ -38,8 +40,17 @@ class MinimalDataset(Dataset):
             property_weights={'positions': 1}
         )
 
-        # we handle configurations using the AtomicData class
-        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+        # we handle configurations using the Data class
+        atomic = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+
+        # Convert atomic → torch_geometric.data.Data
+        batch = Data(
+            edge_index=atomic.edge_index,
+            pos=atomic.positions,
+            node_attrs=atomic.node_attrs,
+            shifts=atomic.shifts,
+            batch=None  # gets set by Batch.from_data_list
+        )
 
         target = self.targets[idx]
 
@@ -75,10 +86,31 @@ class EvaluationDataset(Dataset):
             property_weights={'positions': 1}
         )
 
-        # we handle configurations using the AtomicData class
-        batch = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+        # we handle configurations using the Data class
+        atomic = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+
+        # Convert atomic → torch_geometric.data.Data
+        batch = Data(
+            edge_index=atomic.edge_index,
+            pos=atomic.positions,
+            node_attrs=atomic.node_attrs,
+            shifts=atomic.shifts,
+            batch=None  # gets set by Batch.from_data_list
+        )
 
         return batch
+
+def collate_fn(batch_):
+    """
+    Custom collate function to handle variable-length descriptors in the batch.
+    """
+    batches, targets_ = zip(*batch_)
+
+    # We can't stack the descriptors directly because they have different sizes
+    # Instead, we keep them in a list
+    targets_ = torch.stack(targets_)
+
+    return {'batches': Batch.from_data_list(list(batches)), 'targets': targets_}
 
 def collate_fn_eval(batch_):
     """
@@ -88,4 +120,4 @@ def collate_fn_eval(batch_):
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
 
-    return {'batches': list(batch_)}
+    return {'batches': Batch.from_data_list(list(batch_))}

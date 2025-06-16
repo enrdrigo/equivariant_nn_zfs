@@ -1,4 +1,5 @@
 import torch
+from mace.tools.torch_geometric import Batch
 from torch import nn
 from e3nn import o3
 from e3nn.o3 import Irreps
@@ -8,6 +9,7 @@ from mace import modules
 from e3nn.o3 import SphericalHarmonics
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
+from mace.tools.scatter import scatter_sum
 import logging
 import sys
 
@@ -165,12 +167,12 @@ class TensorRegressor(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-    def get_graph_edge_attributes(self, data):
+    def get_graph_edge_attributes(self, data: Batch):
 
         vectors, lengths = modules.utils.get_edge_vectors_and_lengths(
-            positions=data["positions"],
-            edge_index=data["edge_index"],
-            shifts=data["shifts"],
+            positions=data.pos,
+            edge_index=data.edge_index,
+            shifts=data.shifts,
         )
 
         vectors = vectors.to(self.device)
@@ -198,40 +200,36 @@ class TensorRegressor(nn.Module):
         return length_descriptor, vector_descriptor, node_attributes, edge_index
 
     def forward(self,
-                batch_data
+                batch_data: Batch,
                 ):
-        outputs = []
 
-        # TODO: IMPLEMENT BATCH PARALLELIZATION OR BATCH VECTORIZATION!
+        num_graphs = batch_data.ptr.numel() - 1
 
-        for idx, data in enumerate(batch_data):
+        length_b, edge_attr_b, node_attr_b, edge_index_b = self.get_graph_edge_attributes(batch_data)
 
-            length_b, edge_attr_b, node_attr_b, edge_index_b = self.get_graph_edge_attributes(data)
+        node_attr_b = node_attr_b.detach().requires_grad_()
 
-            node_attr_b = node_attr_b.detach().requires_grad_()
+        node_features = self.node_features(node_attr_b)
 
-            node_features = self.node_features(node_attr_b)
+        total_readout = 0
 
-            total_readout = 0
+        for i in range(2):
 
-            for i in range(2):
+            message, sc = self.radialemb[i](length_b,
+                                            node_features,
+                                            node_attr_b,
+                                            edge_attr_b,
+                                            edge_index_b
+                                            )
 
-                message, sc = self.radialemb[i](length_b,
-                                                node_features,
-                                                node_attr_b,
-                                                edge_attr_b,
-                                                edge_index_b
-                                                )
+            node_features = self.prod[i](message,
+                                         node_attr_b,
+                                         sc)
 
-                node_features = self.prod[i](message,
-                                             node_attr_b,
-                                             sc)
+            readout = self.readout[i](node_features)
 
-                readout = self.readout[i](node_features)
+            total_readout += scatter_sum(readout, batch_data.batch, dim=0, reduce='sum', dim_size=num_graphs)
 
-                total_readout += readout.sum(dim=0)
-
-            outputs.append(total_readout)
 
         # Stack to form final output tensor
-        return torch.stack(outputs, dim=0)
+        return total_readout

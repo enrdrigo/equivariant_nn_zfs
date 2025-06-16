@@ -1,6 +1,7 @@
 import torch
 from collections import defaultdict
 from torch.utils.data import DataLoader, Subset
+from equivariant_nn_zfs.dataset.dataset import collate_fn
 import logging
 import sys
 import random
@@ -49,25 +50,13 @@ file_test_formatter = logging.Formatter('[%(levelname)s] %(message)s')
 file_test_handler.setFormatter(file_test_formatter)
 file_test_logger.addHandler(file_test_handler)
 
-def collate_fn(batch_):
-    """
-    Custom collate function to handle variable-length descriptors in the batch.
-    """
-    batches, targets_ = zip(*batch_)
-
-    # We can't stack the descriptors directly because they have different sizes
-    # Instead, we keep them in a list
-    targets_ = torch.stack(targets_)
-
-    return {'batches': list(batches), 'targets': targets_}
-
 def validate(epoch, model, loader, device):
     model.eval()
     total_loss = 0
     with torch.no_grad():
         for batches in loader:
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = [data.to(device) for data in batches['batches']]
+            batch_data = batches['batches'].to(device)
 
             y_true = batches['targets'].to(device)
 
@@ -98,7 +87,7 @@ def test(epoch, model, loader, device):
     with torch.no_grad():
         for batches in loader:
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = [data.to(device) for data in batches['batches']]
+            batch_data = batches['batches'].to(device)
 
             y_true = batches['targets'].to(device)
 
@@ -199,7 +188,7 @@ def train(model,
             optimizer.zero_grad()  # Zeroing gradients
 
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = [data.to(device) for data in batches['batches']]
+            batch_data = batches['batches'].to(device)
 
             y_true = batches['targets'].to(device)
 
