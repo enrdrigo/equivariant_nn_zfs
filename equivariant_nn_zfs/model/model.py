@@ -3,6 +3,8 @@ from mace.tools.torch_geometric import Batch
 from torch import nn
 from e3nn import o3
 from e3nn.o3 import Irreps
+from torch_geometric.data.remote_backend_utils import num_nodes
+
 from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
 from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
 from mace import modules
@@ -203,7 +205,10 @@ class TensorRegressor(nn.Module):
                 batch_data: Batch,
                 ):
 
+
         num_graphs = batch_data.ptr.numel() - 1
+
+        number_nodes = batch_data.num_nodes // num_graphs
 
         length_b, edge_attr_b, node_attr_b, edge_index_b = self.get_graph_edge_attributes(batch_data)
 
@@ -228,8 +233,9 @@ class TensorRegressor(nn.Module):
 
             readout = self.readout[i](node_features)
 
-            total_readout += scatter_sum(readout, batch_data.batch, dim=0, reduce='sum', dim_size=num_graphs)
+            #reduce mean: i want a quantity that is intensive!
 
+            total_readout += scatter_sum(readout, batch_data.batch, dim=0, reduce='sum', dim_size=num_graphs) / number_nodes
 
         # Stack to form final output tensor
         return total_readout
