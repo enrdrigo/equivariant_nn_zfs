@@ -3,7 +3,6 @@ from mace.tools.torch_geometric import Batch
 from torch import nn
 from e3nn import o3
 from e3nn.o3 import Irreps
-from torch_geometric.data.remote_backend_utils import num_nodes
 
 from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
 from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
