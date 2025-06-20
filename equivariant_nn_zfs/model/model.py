@@ -3,7 +3,7 @@ from mace.tools.torch_geometric import Batch
 from torch import nn
 from e3nn import o3
 from e3nn.o3 import Irreps
-
+from mace.tools import AtomicNumberTable
 from equivariant_nn_zfs.tools.embedding import NodeFeaturesStart, RadialAngularEmbedding
 from equivariant_nn_zfs.tools.prod import ReadoutL2, Product3body
 from mace import modules
@@ -13,6 +13,7 @@ from mace.modules.radial import PolynomialCutoff
 from mace.tools.scatter import scatter_sum
 import logging
 import sys
+from equivariant_nn_zfs.tools.utils_readout import get_centers
 
 # Logger that logs only to stdout
 console_logger = logging.getLogger('console_logger_model')
@@ -29,7 +30,7 @@ console_logger.addHandler(console_handler)
 class TensorRegressor(nn.Module):
     def __init__(self,
                  n_bessel: int,
-                 zlist,
+                 zlist: AtomicNumberTable,
                  radial_cutoff: float,
                  pol_cut_num: int,
                  n_channels: int,
@@ -42,6 +43,8 @@ class TensorRegressor(nn.Module):
         super().__init__()
         self.device = device
 
+        self.zlist = zlist
+
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
         self.bf = BesselBasis(r_max=radial_cutoff, num_basis=n_bessel)
@@ -51,7 +54,7 @@ class TensorRegressor(nn.Module):
         if mlp is None:
             mlp = [64, 64, 64]
 
-        node_attr_len = len(zlist)
+        node_attr_len = len(self.zlist)
 
         node_attr_irreps = o3.Irreps([(node_attr_len, (0, 1))])
 
@@ -232,9 +235,20 @@ class TensorRegressor(nn.Module):
 
             readout = self.readout[i](node_features)
 
-            #reduce mean: i want a quantity that is intensive!
+            #reduce mean: I want a quantity that is intensive!
 
-            total_readout += scatter_sum(readout, batch_data.batch, dim=0, reduce='sum', dim_size=num_graphs) / number_nodes
+            total_readout += readout
+
+        neighbour_center, batch_list, norms = get_centers(atomic=total_readout,
+                                                          k=4,
+                                                          batch=batch_data,
+                                                          edge_index=edge_index_b
+                                                          )
+
+        total_readout=scatter_sum(total_readout[neighbour_center], batch_list,
+                                  dim=0,
+                                  reduce='sum',
+                                  dim_size=num_graphs) / norms.unsqueeze(1)
 
         # Stack to form final output tensor
         return total_readout

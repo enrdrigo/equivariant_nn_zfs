@@ -12,7 +12,8 @@ class MinimalDataset(Dataset):
                  structures,
                  irreps_out,
                  radial_cutoff,
-                 device
+                 device,
+                 z_table=None
                  ):
         self.radial_cutoff = radial_cutoff
         self.structures = structures
@@ -21,11 +22,14 @@ class MinimalDataset(Dataset):
                                                                   irreps=irreps_out) for s in structures], dim=0)
         self.device = device
 
-        z_table = set()
-        for s in structures:
-            s_z_table = s.get_atomic_numbers()
-            z_table.update(s_z_table)
-        self.z_table = tools.AtomicNumberTable(list(z_table))
+        if z_table is None:
+            z_table = set()
+            for s in structures:
+                s_z_table = s.get_atomic_numbers()
+                z_table.update(s_z_table)
+            self.z_table = tools.AtomicNumberTable(list(z_table))
+        else:
+            self.z_table = tools.AtomicNumberTable(z_table)
 
     def __len__(self):
         return len(self.structures)
@@ -63,17 +67,21 @@ class EvaluationDataset(Dataset):
     def __init__(self,
                  structures,
                  radial_cutoff,
-                 device
+                 device,
+                 z_table=None
                  ):
         self.radial_cutoff = radial_cutoff
         self.structures = structures
         self.device = device
 
-        z_table = set()
-        for s in structures:
-            s_z_table = s.get_atomic_numbers()
-            z_table.update(s_z_table)
-        self.z_table = tools.AtomicNumberTable(list(z_table))
+        if z_table is None:
+            z_table = set()
+            for s in structures:
+                s_z_table = s.get_atomic_numbers()
+                z_table.update(s_z_table)
+            self.z_table = tools.AtomicNumberTable(list(z_table))
+        else:
+            self.z_table = z_table
 
     def __len__(self):
         return len(self.structures)
