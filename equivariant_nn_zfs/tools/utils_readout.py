@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.data import Batch
+from mace.tools.torch_geometric import Batch
 
 def get_centers_batch(top_k_batch,
                       edge_index,
