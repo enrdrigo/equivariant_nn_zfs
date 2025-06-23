@@ -53,5 +53,5 @@ def evaluating(data: list,
 
     write(path_to_evaluate+'evaluate_dataset.extxyz',data)
 
-    yield data
+   return data
 
