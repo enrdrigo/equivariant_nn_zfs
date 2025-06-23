@@ -11,8 +11,11 @@ def evaluating(data: list,
                radial_cutoff=None,
                batch_size=10,
                num_workers=4,
-               path_to_evaluate='',
+               path_to_evaluate=None,
                ):
+
+    if path_to_evaluate is None:
+        path_to_evaluate = 'evaluate_dataset.extxyz'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = model.to(device)
@@ -48,12 +51,12 @@ def evaluating(data: list,
     start_idx=0
     for idx, data_ in enumerate(data):
         end_idx=start_idx+len(data_)
-        data[idx].info['target']=y_pred_tot[idx].numpy()
-        data[idx].arrays['local_target'] = y_pred_local[start_idx:end_idx].numpy()
-        data[idx].arrays['local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
+        data[idx].info['eval_target']=y_pred_tot[idx].numpy()
+        data[idx].arrays['eval_local_target'] = y_pred_local[start_idx:end_idx].numpy()
+        data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
         start_idx=end_idx
 
-    write(path_to_evaluate+'evaluate_dataset.extxyz',data)
+    write(path_to_evaluate,data)
 
     return
 
