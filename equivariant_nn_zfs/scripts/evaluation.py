@@ -16,6 +16,7 @@ def evaluating(data: list,
 
     if path_to_evaluate is None:
         path_to_evaluate = 'evaluate_dataset.extxyz'
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = model.to(device)
