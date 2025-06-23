@@ -243,8 +243,10 @@ class TensorRegressor(nn.Module):
 
             total_readout += readout
 
+        total_number_of_centers = 4
+
         neighbour_center, batch_list, norms = get_centers(atomic=total_readout,
-                                                          k=4,
+                                                          k=total_number_of_centers,
                                                           batch=batch_data,
                                                           edge_index=edge_index_b
                                                           )
@@ -252,8 +254,7 @@ class TensorRegressor(nn.Module):
         final_readout=scatter_sum(total_readout[neighbour_center], batch_list,
                                   dim=0,
                                   reduce='sum',
-                                  dim_size=num_graphs) / norms.unsqueeze(1)
+                                  dim_size=num_graphs) / total_number_of_centers#/ norms.unsqueeze(1)
 
-        # Stack to form final output tensor
         return {'target': final_readout,
                 'local target': total_readout}
