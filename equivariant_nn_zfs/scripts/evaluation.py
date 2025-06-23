@@ -41,8 +41,8 @@ def evaluating(data: list,
             y_pred_tot.append(y_pred['target'][:, :].cpu())
             y_pred_local.append(y_pred['local target'][:, :].cpu())
 
-    y_pred_tot = torch.cat(y_pred_tot, dim=0).T
-    y_pred_local = torch.cat(y_pred_local, dim=0).T
+    y_pred_tot = torch.cat(y_pred_tot, dim=0)
+    y_pred_local = torch.cat(y_pred_local, dim=0)
 
     start_idx=0
     for idx, data_ in enumerate(data):
