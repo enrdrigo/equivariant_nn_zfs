@@ -6,7 +6,11 @@ def get_centers_batch(top_k_batch,
                       k,
                       device,
                       ):
-    edge_set = set((int(i), int(j)) for i, j in zip(edge_index[0], edge_index[1]))
+
+    edge_set = set()
+    for i, j in zip(edge_index[0], edge_index[1]):
+        edge_set.add((int(i), int(j)))
+        edge_set.add((int(j), int(i)))
 
     center = top_k_batch[0]
     centers_batch = [center]
@@ -35,6 +39,40 @@ def get_centers_batch(top_k_batch,
 
     return ValueError('NOPE!')
 
+def fast_get_centers_batch(top_k_batch_indices,
+                           edge_index,
+                           k,
+                           adj_matrix,
+                           device,
+                           ):
+    num_nodes = edge_index.max().item() + 1
+
+    centers_batch = [top_k_batch_indices[0]]
+    mask_centers = torch.zeros(num_nodes, dtype=torch.bool, device=device)
+    mask_centers[centers_batch[0]] = True
+
+    for next_center in top_k_batch_indices[1:]:
+        # Check if next_center is connected to any chosen center
+        if adj_matrix[next_center][mask_centers].any():
+            continue
+        centers_batch.append(next_center)
+        mask_centers[next_center] = True
+        if len(centers_batch) == k:
+            break
+
+    # Gather neighbors of all centers
+    centers_tensor = torch.tensor(centers_batch, device=device)
+
+    # Find all edges whose source is in centers
+    source_nodes = edge_index[0]
+    center_mask = torch.isin(source_nodes, centers_tensor)
+
+    neighs = edge_index[1][center_mask]
+
+    unique_neighs = torch.unique(torch.cat([neighs, centers_tensor], dim=0))
+
+    return unique_neighs
+
 def get_centers(atomic: torch.Tensor,
                 edge_index,
                 k,
@@ -51,18 +89,28 @@ def get_centers(atomic: torch.Tensor,
 
     norms = []
 
+    num_nodes = edge_index.max().item() + 1
+
+    adj_matrix = torch.zeros((num_nodes, num_nodes), dtype=torch.bool, device=atomic.device)
+    adj_matrix[edge_index[0], edge_index[1]] = True
+    adj_matrix[edge_index[1], edge_index[0]] = True  # Make it undirected
+
     for b in range(num_graphs):
         top_k_batch_ = top_k.indices[batch.batch[top_k.indices] == b]
 
-        neighbours_centers_b=get_centers_batch(top_k_batch_,
-                                    k=k,
-                                    edge_index=edge_index,
-                                    device=atomic.device)
+        neighbours_centers_b=fast_get_centers_batch(top_k_batch_,
+                                                    k=k,
+                                                    edge_index=edge_index,
+                                                    adj_matrix=adj_matrix,
+                                                    device=atomic.device)
         neighbours_centers.append(neighbours_centers_b)
 
         list_batches.append(batch.batch[neighbours_centers_b])
 
         norms.append(len(neighbours_centers_b))
 
-    return torch.cat(neighbours_centers, dim=0), torch.cat(list_batches, dim=0), torch.tensor(norms, device=atomic.device)
+    return (torch.cat(neighbours_centers, dim=0),
+            torch.cat(list_batches, dim=0),
+            torch.tensor(norms, device=atomic.device)
+            )
 

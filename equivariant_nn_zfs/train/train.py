@@ -62,11 +62,11 @@ def validate(epoch, model, loader, device):
 
             y_pred = model(batch_data)  # Forward pass
 
-            loss = model.loss_fn(y_pred, y_true)  # Loss calculation
+            loss = model.loss_fn(y_pred['target'], y_true)  # Loss calculation
 
             total_loss += loss.item()
 
-            mse_components = model.mse_components(y_pred, y_true)
+            mse_components = model.mse_components(y_pred['target'], y_true)
 
             file_validation_logger.info(f"{epoch:.3e}  "+" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
 
@@ -93,9 +93,9 @@ def test(epoch, model, loader, device):
 
             y_pred = model(batch_data)  # Forward pass
 
-            loss = model.loss_fn(y_pred, y_true)
+            loss = model.loss_fn(y_pred['target'], y_true)
 
-            mse_components = model.mse_components(y_pred, y_true).mean(axis=0)  # Loss calculation
+            mse_components = model.mse_components(y_pred['target'], y_true).mean(axis=0)  # Loss calculation
 
             error_batches.append(mse_components.tolist())
 
@@ -194,11 +194,11 @@ def train(model,
 
             y_pred = model(batch_data)  # Forward pass
 
-            loss = model.loss_fn(y_pred, y_true)  # Loss calculation
+            loss = model.loss_fn(y_pred['target'], y_true)  # Loss calculation
 
             loss.backward()  # Backpropagation
 
-            mse_components = model.mse_components(y_pred, y_true)
+            mse_components = model.mse_components(y_pred['target'], y_true)
 
             error_batches.append(mse_components.mean(axis=0).tolist())
 
