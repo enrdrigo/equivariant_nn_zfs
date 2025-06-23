@@ -3,6 +3,7 @@ from equivariant_nn_zfs.model.model import TensorRegressor
 from torch.utils.data import DataLoader
 import torch
 from ase.io import read,write
+from tqdm import tqdm
 
 
 def evaluating(data: list,
@@ -33,7 +34,7 @@ def evaluating(data: list,
     y_pred_local=[]
 
     with torch.no_grad():
-        for batches in loader:
+        for batches in tqdm(loader, desc="Evaluating"):
             batches_data = batches['batches'].to(model.device)
 
             y_pred= model(batches_data)  # Forward pass
