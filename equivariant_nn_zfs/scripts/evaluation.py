@@ -49,7 +49,8 @@ def evaluating(data: list,
     for idx, data_ in enumerate(data):
         end_idx=start_idx+len(data_)
         data[idx].info['target']=y_pred_tot[idx].numpy()
-        data[idx].arrays['local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=0).numpy()
+        data[idx].arrays['local_target'] = y_pred_local[start_idx:end_idx].numpy()
+        data[idx].arrays['local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
         start_idx=end_idx
 
     write(path_to_evaluate+'evaluate_dataset.extxyz',data)
