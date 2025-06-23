@@ -4,6 +4,8 @@ from mace import data, tools
 from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
 from mace.tools.torch_geometric import Batch
 from mace.tools.torch_geometric.data import Data
+from equivariant_nn_zfs.model.model import TensorRegressor
+from mace.tools import AtomicNumberTable
 
 
 class MinimalDataset(Dataset):
@@ -66,22 +68,13 @@ class EvaluationDataset(Dataset):
 
     def __init__(self,
                  structures,
-                 radial_cutoff,
-                 device,
-                 z_table=None
+                 model: TensorRegressor
                  ):
-        self.radial_cutoff = radial_cutoff
+        self.radial_cutoff = model.radial_cutoff
         self.structures = structures
-        self.device = device
-
-        if z_table is None:
-            z_table = set()
-            for s in structures:
-                s_z_table = s.get_atomic_numbers()
-                z_table.update(s_z_table)
-            self.z_table = tools.AtomicNumberTable(list(z_table))
-        else:
-            self.z_table = z_table
+        self.device = model.device
+        self.z_table = model.z_table
+        assert isinstance(self.z_table, AtomicNumberTable), "z_table must be an instance of AtomicNumberTable"
 
     def __len__(self):
         return len(self.structures)
@@ -102,15 +95,13 @@ class EvaluationDataset(Dataset):
         atomic = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
 
         # Convert atomic → torch_geometric.data.Data
-        batch = Data(
+
+        return Data(
             edge_index=atomic.edge_index,
             pos=atomic.positions,
             node_attrs=atomic.node_attrs,
-            shifts=atomic.shifts,
-            batch=None  # gets set by Batch.from_data_list
+            shifts=atomic.shifts
         )
-
-        return batch
 
 def collate_fn(batch_):
     """

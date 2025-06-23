@@ -45,6 +45,8 @@ class TensorRegressor(nn.Module):
 
         self.zlist = zlist
 
+        self.radial_cutoff = radial_cutoff
+
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
         self.bf = BesselBasis(r_max=radial_cutoff, num_basis=n_bessel)
