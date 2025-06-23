@@ -68,9 +68,13 @@ class EvaluationDataset(Dataset):
 
     def __init__(self,
                  structures,
-                 model: TensorRegressor
+                 model: TensorRegressor,
+                 radial_cutoff=None
                  ):
-        self.radial_cutoff = model.radial_cutoff
+        if radial_cutoff is None:
+            self.radial_cutoff = model.radial_cutoff
+        else:
+            self.radial_cutoff = radial_cutoff
         self.structures = structures
         self.device = model.device
         self.z_table = model.z_table
