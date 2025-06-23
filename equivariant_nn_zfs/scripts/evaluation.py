@@ -12,7 +12,7 @@ from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irrep
 def evaluating(data: list,
                model: TensorRegressor,
                radial_cutoff=None,
-               irreps_out=None,
+               irreps_out = None,
                do_irreps = False,
                batch_size=10,
                num_workers=4,
@@ -26,6 +26,7 @@ def evaluating(data: list,
         try:
             irreps_out = model.irreps_out
         except: do_irreps = False
+    else: do_irreps = True
 
     assert isinstance(irreps_out, Irreps), "irreps_out must be an instance of Irreps"
 
