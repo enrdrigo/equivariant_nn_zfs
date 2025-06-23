@@ -245,10 +245,11 @@ class TensorRegressor(nn.Module):
                                                           edge_index=edge_index_b
                                                           )
 
-        total_readout=scatter_sum(total_readout[neighbour_center], batch_list,
+        final_readout=scatter_sum(total_readout[neighbour_center], batch_list,
                                   dim=0,
                                   reduce='sum',
                                   dim_size=num_graphs) / norms.unsqueeze(1)
 
         # Stack to form final output tensor
-        return total_readout
+        return {'target': final_readout,
+                'local target': total_readout}
