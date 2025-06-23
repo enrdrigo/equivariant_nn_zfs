@@ -47,11 +47,11 @@ def evaluating(data: list,
     start_idx=0
     for idx, data_ in enumerate(data):
         end_idx=start_idx+len(data_)
-        data[idx].info['target']=y_pred_tot[idx]
-        data[idx].arrays['local_target']=y_pred_local[start_idx:end_idx]
+        data[idx].info['target']=y_pred_tot[idx].numpy()
+        data[idx].arrays['local_target']=y_pred_local[start_idx:end_idx].numpy()
         start_idx=end_idx
 
     write(path_to_evaluate+'evaluate_dataset.extxyz',data)
 
-   return data
+    return data
 
