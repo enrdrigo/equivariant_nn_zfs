@@ -77,7 +77,7 @@ class EvaluationDataset(Dataset):
             self.radial_cutoff = radial_cutoff
         self.structures = structures
         self.device = model.device
-        self.z_table = model.z_table
+        self.z_table = model.zlist
         assert isinstance(self.z_table, AtomicNumberTable), "z_table must be an instance of AtomicNumberTable"
 
     def __len__(self):
