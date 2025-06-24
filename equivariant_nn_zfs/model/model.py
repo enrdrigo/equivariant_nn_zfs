@@ -254,7 +254,7 @@ class TensorRegressor(nn.Module):
         final_readout=scatter_sum(total_readout[neighbour_center], batch_list,
                                   dim=0,
                                   reduce='sum',
-                                  dim_size=num_graphs) / total_number_of_centers#/ norms.unsqueeze(1)
+                                  dim_size=num_graphs) / norms.unsqueeze(1)
 
         return {'target': final_readout,
                 'local target': total_readout}
