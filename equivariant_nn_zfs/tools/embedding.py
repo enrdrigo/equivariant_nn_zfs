@@ -43,8 +43,8 @@ class RadialAngularEmbedding(nn.Module):
         super().__init__()
 
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            node_feat_irreps,
-            irreps_sh,
+            irreps1=node_feat_irreps,
+            irreps2=irreps_sh,
             target_irreps=hidden_irreps,
         )
 
@@ -76,8 +76,6 @@ class RadialAngularEmbedding(nn.Module):
                                                            irreps_in2=node_feat_irreps,
                                                            irreps_out=hidden_irreps
                                                            )
-
-        print(self.fcn, self.linear, self.fctp_attributes)
 
     def forward(self,
                 length,

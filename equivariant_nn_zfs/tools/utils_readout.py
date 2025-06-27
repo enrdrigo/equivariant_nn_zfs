@@ -42,7 +42,6 @@ def get_centers_batch(top_k_batch,
 def fast_get_centers_batch(top_k_batch_indices,
                            edge_index,
                            k,
-                           adj_matrix,
                            device,
                            ):
     num_nodes = edge_index.max().item() + 1
@@ -52,9 +51,8 @@ def fast_get_centers_batch(top_k_batch_indices,
     mask_centers[centers_batch[0]] = True
 
     for next_center in top_k_batch_indices[1:]:
-        # Check if next_center is connected to any chosen center
-        if adj_matrix[next_center][mask_centers].any():
-            continue
+        if len(centers_batch) == k:
+            break
         centers_batch.append(next_center)
         mask_centers[next_center] = True
         if len(centers_batch) == k:
@@ -85,32 +83,13 @@ def get_centers(atomic: torch.Tensor,
 
     neighbours_centers = []
 
-    list_batches = []
-
-    norms = []
-
-    num_nodes = edge_index.max().item() + 1
-
-    adj_matrix = torch.zeros((num_nodes, num_nodes), dtype=torch.bool, device=atomic.device)
-    adj_matrix[edge_index[0], edge_index[1]] = True
-    adj_matrix[edge_index[1], edge_index[0]] = True  # Make it undirected
-
     for b in range(num_graphs):
         top_k_batch_ = top_k.indices[batch.batch[top_k.indices] == b]
 
         neighbours_centers_b=fast_get_centers_batch(top_k_batch_,
                                                     k=k,
                                                     edge_index=edge_index,
-                                                    adj_matrix=adj_matrix,
                                                     device=atomic.device)
         neighbours_centers.append(neighbours_centers_b)
 
-        list_batches.append(batch.batch[neighbours_centers_b])
-
-        norms.append(len(neighbours_centers_b))
-
-    return (torch.cat(neighbours_centers, dim=0),
-            torch.cat(list_batches, dim=0),
-            torch.tensor(norms, device=atomic.device)
-            )
-
+    return torch.cat(neighbours_centers, dim=0)

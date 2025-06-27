@@ -10,7 +10,7 @@ from mace import modules
 from e3nn.o3 import SphericalHarmonics
 from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
-from mace.tools.scatter import scatter_sum
+from mace.tools.scatter import scatter_sum, scatter_mean
 import logging
 import sys
 from equivariant_nn_zfs.tools.utils_readout import get_centers
@@ -145,31 +145,31 @@ class TensorRegressor(nn.Module):
                           target
                           ):
 
-        device = pred.device  # Get the device of prediction
+        device = pred['pred'].device  # Get the device of prediction
 
         target = target.to(device)
 
-        pred_flat = pred.view(pred.size(0), -1)
+        pred_flat = pred['pred'].view(pred['pred'].size(0), -1)
+        base_flat = pred['base'].view(pred['base'].size(0), -1)
         target_flat = target.view(target.size(0), -1)
-        weights = self.loss_weights.to(pred.device).unsqueeze(0)
-        loss = weights * ((pred_flat - target_flat) ** 2).mean(axis=0)
+        loss = ((pred_flat - target_flat) ** 2).mean(axis=0) + (base_flat**2).mean(axis=0)
         return loss.mean()
 
     def mse_components(self,
                        pred,
                        target
                        ):
-        # Extract upper triangle components (batch_size, 9)
 
-        device = pred.device  # Get the device of prediction
+        device = pred['pred'].device  # Get the device of prediction
 
         target = target.to(device)
 
-        pred_flat = pred.view(pred.size(0), -1)
+        pred_flat = pred['pred'].view(pred['pred'].size(0), -1)
+        base_flat = pred['base'].view(pred['base'].size(0), -1)
 
         target_flat = target.view(target.size(0), -1)
 
-        loss = ((pred_flat - target_flat) ** 2)
+        loss = ((pred_flat - target_flat) ** 2) + base_flat**2
         return loss
 
     def count_parameters(self):
@@ -245,16 +245,29 @@ class TensorRegressor(nn.Module):
 
         total_number_of_centers = 4
 
-        neighbour_center, batch_list, norms = get_centers(atomic=total_readout,
-                                                          k=total_number_of_centers,
-                                                          batch=batch_data,
-                                                          edge_index=edge_index_b
-                                                          )
+        neighbour_center = get_centers(atomic=total_readout,
+                                       k=total_number_of_centers,
+                                       batch=batch_data,
+                                       edge_index=edge_index_b
+                                       )
 
-        final_readout=scatter_sum(total_readout[neighbour_center], batch_list,
-                                  dim=0,
-                                  reduce='sum',
-                                  dim_size=num_graphs) / norms.unsqueeze(1)
+        not_neighbour_center = torch.ones(total_readout.size(0),
+                                          dtype=torch.bool,
+                                          device=total_readout.device)
 
-        return {'target': final_readout,
+        not_neighbour_center[neighbour_center] = False
+
+        baseline = scatter_mean(total_readout[not_neighbour_center], batch_data.batch[not_neighbour_center],
+                                dim=0,
+                                dim_size=num_graphs)
+
+        final_readout = scatter_mean(total_readout[neighbour_center], batch_data.batch[neighbour_center],
+                                     dim=0,
+                                     dim_size=num_graphs)
+        #
+        # print(final_readout)
+
+
+        return {'target': {'pred':final_readout,
+                           'base': baseline},
                 'local target': total_readout}

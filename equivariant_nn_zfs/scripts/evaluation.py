@@ -2,7 +2,7 @@ from equivariant_nn_zfs.dataset.dataset import EvaluationDataset, collate_fn_eva
 from equivariant_nn_zfs.model.model import TensorRegressor
 from torch.utils.data import DataLoader
 import torch
-from ase.io import read,write
+from ase.io import write
 from tqdm import tqdm
 from e3nn.o3 import Irreps
 
@@ -56,7 +56,7 @@ def evaluating(data: list,
 
             y_pred= model(batches_data)  # Forward pass
 
-            y_pred_tot.append(y_pred['target'][:, :].cpu())
+            y_pred_tot.append(y_pred['target']['pred'][:, :].cpu())
             y_pred_local.append(y_pred['local target'][:, :].cpu())
 
     y_pred_tot = torch.cat(y_pred_tot, dim=0)

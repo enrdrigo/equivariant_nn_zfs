@@ -8,9 +8,9 @@ from e3nn.o3 import wigner_3j
 @compile_mode("script")
 class ContractProduct3j(nn.Module):
     def __init__(self,
-                 irreps_in1,
-                 irreps_in2,
-                 irreps_target
+                 irreps_in1: Irreps,
+                 irreps_in2: Irreps,
+                 irreps_target: Irreps
                  ):
         super().__init__()
         self.irreps_in1 = irreps_in1
@@ -55,7 +55,7 @@ class ContractProduct3j(nn.Module):
         dims = []
 
         for mul3_, (mul3, ir3) in enumerate(self.irreps_target):
-            dims.append(ir3.dim)
+            dims.append(ir3.dim * mul3)
 
         offset = [0]
 
@@ -67,9 +67,11 @@ class ContractProduct3j(nn.Module):
                 for ir3 in ir1 * ir2:
                     if ir3 not in self.irreps_target:
                         continue
+
                     w123 = wigner_3j(ir1.l, ir2.l, ir3.l).to(device)  # with shape [2l_1+1, 2l_2+1, 2l_3+1]
                     tir1 = self.extractl(tensor_1, self.irreps_in1, ir1.l)
                     tir2 = self.extractl(tensor_2, self.irreps_in2, ir2.l)
+
 
                     out[..., offset[ir3.l]:int(2*ir3.l + 1 + offset[ir3.l])] += torch.einsum('ncl, ncm, lms -> ncs',
                                                                                              tir1,
