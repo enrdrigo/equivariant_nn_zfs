@@ -76,7 +76,8 @@ if __name__ == "__main__":
         else: args.num_segments = 1
 
     if args.batch_size is None:
-        args.batch_size = int(args.epochs / args.num_segments * len(db) / 200000 + 1)
+        args.batch_size = int(args.epochs / args.num_segments * len(db) / 200000)
+    if args.batch_size==0: args.batch_size=1
 
     db_test = read(args.data_test_path, ':'+args.length_test)
 

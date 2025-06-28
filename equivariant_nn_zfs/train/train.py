@@ -68,11 +68,12 @@ def validate(epoch, model, loader, device):
 
             mse_components = model.mse_components(y_pred['target'], y_true)
 
-            file_validation_logger.info(f"{epoch:.3e}  "+" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
-
     avg_loss = total_loss / len(loader)
 
     console_logger.info(f"VAL        Loss =                    {avg_loss:.4f}")
+
+    file_validation_logger.info(
+        f"{epoch:.3e}  "+f"{avg_loss:.4f}")
     return avg_loss
 
 
@@ -202,8 +203,6 @@ def train(model,
 
             error_batches.append(mse_components.mean(axis=0).tolist())
 
-            file_logger.info(f"{epoch:.3e}  "+" ".join(f"{mse:.3e}" for mse in mse_components.mean(axis=0).tolist()))
-
             optimizer.step()  # Update weights
 
             total_loss += loss.item()
@@ -218,6 +217,8 @@ def train(model,
         console_logger.info("TRAIN STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
 
         console_logger.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
+
+        file_logger.info(f"{epoch:.3e}  " + f"{total_loss / len(loader):.4f}")
 
         val_loss = validate(epoch, model, val_loader, device)
 

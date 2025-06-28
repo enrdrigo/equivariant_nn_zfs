@@ -251,7 +251,7 @@ class TensorRegressor(nn.Module):
                                        edge_index=edge_index_b
                                        )
 
-        not_neighbour_center = torch.ones(total_readout.size(0),
+        not_neighbour_center = torch.zeros(total_readout.size(0),
                                           dtype=torch.bool,
                                           device=total_readout.device)
 
@@ -261,12 +261,10 @@ class TensorRegressor(nn.Module):
                                 dim=0,
                                 dim_size=num_graphs)
 
+
         final_readout = scatter_mean(total_readout[neighbour_center], batch_data.batch[neighbour_center],
                                      dim=0,
                                      dim_size=num_graphs)
-        #
-        # print(final_readout)
-
 
         return {'target': {'pred':final_readout,
                            'base': baseline},

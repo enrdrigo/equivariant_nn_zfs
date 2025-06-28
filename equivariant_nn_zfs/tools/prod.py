@@ -21,10 +21,10 @@ class Product3body(nn.Module):
                                              irreps_in2=irreps_sh,
                                              irreps_target=irreps_sh
                                              )
-        ncor_irreps_sh = (len(ncor)*Irreps('0e')).sort()[0].simplify()
+        ncor_irreps_sh =  len(ncor) * irreps_sh
 
         self.linear_body = Linear(irreps_in=ncor_irreps_sh,
-                                  irreps_out=Irreps('0e'),
+                                  irreps_out=irreps_sh,
                                   )
 
         mul, (_, _) = hidden_irreps[0]
@@ -47,9 +47,9 @@ class Product3body(nn.Module):
 
         node3 = self.contraction(node2, node_feature_i)  # nodes, channels, irreps
 
-        node_out = torch.stack([node_feature_i, node2, node3], dim=-1)# nodes, channels, irreps, nbody
+        node_out = torch.cat([node_feature_i, node2, node3], dim=-1)# nodes, channels, irreps, nbody
 
-        node_out = self.linear_body(node_out)[...,0]  # nodes, channels, irreps
+        node_out = self.linear_body(node_out)  # nodes, channels, irreps
 
         out = []
         for s in torch.unbind(node_out, -2):
@@ -73,7 +73,7 @@ class ReadoutL2(nn.Module):
         super().__init__()
 
         self.linear_readout = Linear(irreps_in=hidden_irreps,
-                                     irreps_out=out_irreps
+                                     irreps_out=5*Irreps('0e'),
                                      )
 
 
