@@ -46,9 +46,9 @@ if __name__ == "__main__":
     parser.add_argument('--min_lr', type=float, default=1e-6, help='ratio of the final lr')
     parser.add_argument('--mlp', type=str, default=None, help='architecture of the MLP, default [64, 64, 64]')
     parser.add_argument('--data_test_path', type=str, default='test.extxyz', help='Path to input test EXTXYZ file')
-    parser.add_argument('--pol_cut_num', type=int, default=5, help='number of cutoff polynomials in the descriptor')
-    parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
-    parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
+    parser.add_argument('--pol_cut_num', type=int, default=8, help='number of cutoff polynomials in the descriptor')
+    parser.add_argument('--n_bessel', type=int, default=16, help='number of bessel polynomials in the descriptor')
+    parser.add_argument('--max_l_hidden', type=int, default=4, help='max l in hidden irreps')
     parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
     parser.add_argument('--len_segment', type=int, default=500, help='length of the segment')
     parser.add_argument('--length_test', type=str, default='', help='length of test set')
@@ -85,13 +85,13 @@ if __name__ == "__main__":
 
     dataset = MinimalDataset(db,
                              device=device,
-                             irreps_out=Irreps('2e'),
+                             rule='ij=ji',
                              radial_cutoff=args.rcut
                              )
 
     dataset_test = MinimalDataset(db_test,
                                   device=device,
-                                  irreps_out=Irreps('2e'),
+                                  rule='ij=ji',
                                   radial_cutoff=args.rcut
                                   )
 
@@ -145,16 +145,10 @@ if __name__ == "__main__":
                                 n_bessel=args.n_bessel,
                                 zlist=dataset.z_table,
                                 n_channels=args.nchannels,
-                                weights=[1,
-                                         1,
-                                         1,
-                                         1,
-                                         1
-                                         ],
                                 device=device,
                                 irreps_sh=Irreps([(1, (l, int(-2*(l%2-0.5)))) for l in range(args.max_l_hidden+1)]),
                                 mlp=mlp,
-                                irreps_out=dataset.irreps_out
+                                irreps_out=Irreps(str(dataset.irreps_out))
                                 )
 
         start_epoch = 0

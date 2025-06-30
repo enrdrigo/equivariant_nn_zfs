@@ -73,7 +73,7 @@ class ReadoutL2(nn.Module):
         super().__init__()
 
         self.linear_readout = Linear(irreps_in=hidden_irreps,
-                                     irreps_out=5*Irreps('0e'),
+                                     irreps_out=out_irreps,
                                      )
 
 

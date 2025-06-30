@@ -5,15 +5,14 @@ import torch
 from ase.io import write
 from tqdm import tqdm
 from e3nn.o3 import Irreps
-
-from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
-
+from e3nn.io import CartesianTensor
 
 def evaluating(data: list,
                model: TensorRegressor,
                radial_cutoff=None,
                irreps_out = None,
                do_irreps = False,
+               rule = 'ij=ji',
                batch_size=10,
                num_workers=4,
                path_to_evaluate=None,
@@ -31,6 +30,8 @@ def evaluating(data: list,
     assert isinstance(irreps_out, Irreps), "irreps_out must be an instance of Irreps"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    cartesian = CartesianTensor(rule)
 
     model = model.to(device)
 
@@ -63,16 +64,22 @@ def evaluating(data: list,
     y_pred_local = torch.cat(y_pred_local, dim=0)
 
     start_idx=0
+    collect_data=[]
     for idx, data_ in enumerate(data):
         end_idx=start_idx+len(data_)
         data[idx].info['eval_target']=y_pred_tot[idx].numpy()
         if do_irreps:
             target_l2 = torch.tensor(data[idx].info['target_L2'].reshape(3, 3), device=model.device)
-            data[idx].info['true_target'] = cartesian_to_spherical_irreps(target_l2,
-                                                                          irreps=irreps_out).cpu().numpy()
+            collect_data.append(target_l2)
         data[idx].arrays['eval_local_target'] = y_pred_local[start_idx:end_idx].numpy()
         data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
         start_idx=end_idx
+
+    if do_irreps:
+        collect_data=torch.stack(collect_data, dim=0)
+        collect_data=cartesian.from_cartesian(collect_data).cpu().numpy()
+        for idx, data_ in enumerate(data):
+            data[idx].info['true_target'] = collect_data[idx]
 
     write(path_to_evaluate,data)
 

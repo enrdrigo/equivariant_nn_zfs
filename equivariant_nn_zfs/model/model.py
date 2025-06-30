@@ -36,7 +36,6 @@ class TensorRegressor(nn.Module):
                  n_channels: int,
                  irreps_sh: Irreps,
                  irreps_out: Irreps,
-                 weights: list,
                  device=None,
                  mlp=None
                  ):
@@ -111,8 +110,6 @@ class TensorRegressor(nn.Module):
                                       out_irreps=irreps_out
                                       )
                             )
-
-        self.loss_weights = torch.tensor(weights)
 
         self.loss_fn = self.weighted_mse_loss
 

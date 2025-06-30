@@ -1,10 +1,10 @@
 import torch
 from torch.utils.data import Dataset
 from mace import data, tools
-from equivariant_nn_zfs.tools.convert_matrix import cartesian_to_spherical_irreps
 from mace.tools.torch_geometric import Batch
 from mace.tools.torch_geometric.data import Data
 from equivariant_nn_zfs.model.model import TensorRegressor
+from e3nn.io import CartesianTensor
 from mace.tools import AtomicNumberTable
 
 
@@ -12,16 +12,16 @@ class MinimalDataset(Dataset):
 
     def __init__(self,
                  structures,
-                 irreps_out,
                  radial_cutoff,
                  device,
+                 rule,
                  z_table=None
                  ):
         self.radial_cutoff = radial_cutoff
         self.structures = structures
-        self.irreps_out = irreps_out
-        self.targets = torch.stack([cartesian_to_spherical_irreps(torch.tensor(s.info['target_L2'].reshape(3, 3)),
-                                                                  irreps=irreps_out) for s in structures], dim=0)
+        cartesian = CartesianTensor(rule)
+        self.irreps_out = cartesian
+        self.targets = cartesian.from_cartesian(torch.stack([(torch.tensor(s.info['target_L2']).reshape(3, 3)) for s in structures], dim=0))
         self.device = device
 
         if z_table is None:
