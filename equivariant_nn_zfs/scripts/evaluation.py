@@ -37,6 +37,11 @@ def evaluating(data: list,
 
     model.device = device
 
+    pin_memory = False
+
+    if device == torch.device("cuda"):
+        pin_memory = True
+
     dataset = EvaluationDataset(data,
                                 model=model,
                                 radial_cutoff=radial_cutoff
@@ -45,7 +50,8 @@ def evaluating(data: list,
                         batch_size=batch_size,
                         shuffle=False,
                         num_workers=num_workers,
-                        collate_fn=collate_fn_eval
+                        collate_fn=collate_fn_eval,
+                        pin_memory=pin_memory
                         )
 
     y_pred_tot=[]
