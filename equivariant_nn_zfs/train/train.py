@@ -6,6 +6,8 @@ import logging
 import sys
 import random
 
+from equivariant_nn_zfs.model.model import TensorRegressor
+
 # Logger that logs only to stdout
 console_logger = logging.getLogger('console_logger')
 console_logger.setLevel(logging.INFO)
@@ -83,6 +85,8 @@ def test(epoch, model, loader, device):
 
     error_batches = []
 
+    average_active_atoms=[]
+
     total_loss = 0
 
     with torch.no_grad():
@@ -102,17 +106,20 @@ def test(epoch, model, loader, device):
 
             total_loss += loss.item()
 
+            average_active_atoms.append(len(model.active_atoms))
+
     error_batches = torch.tensor(error_batches)
     avg_loss = total_loss / len(loader)
 
     console_logger.info(f"TEST       Loss =                    {avg_loss:.4f}")
+    console_logger.info(f"average number of active atoms in test {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
     console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(dim=0)))
     console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
     file_test_logger.info(f"{epoch:.3e}  "+f"{avg_loss:.4f}")
     return
 
 
-def train(model,
+def train(model: TensorRegressor,
           train_data,
           val_data,
           test_data,
@@ -163,6 +170,8 @@ def train(model,
     for epoch in range(start_epoch, n_epochs):
         error_batches = []
 
+        average_active_atoms=[]
+
         total_loss = 0
 
         # Cycle through segments: 0,1,2,0,1,2,...
@@ -207,6 +216,8 @@ def train(model,
 
             total_loss += loss.item()
 
+            average_active_atoms.append(len(model.active_atoms))
+
         for param_group in optimizer.param_groups:
             console_logger.info(f"LR: {param_group['lr']}")
 
@@ -215,6 +226,8 @@ def train(model,
         console_logger.info("TRAIN MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(dim=0)))
 
         console_logger.info("TRAIN STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
+
+        console_logger.info(f"average number of active atoms in train {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
 
         console_logger.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 

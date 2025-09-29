@@ -256,6 +256,8 @@ class TensorRegressor(nn.Module):
 
         not_neighbour_center[neighbour_center] = False
 
+        self.active_atoms = neighbour_center
+
         baseline = scatter_mean(total_readout[not_neighbour_center], batch_data.batch[not_neighbour_center],
                                 dim=0,
                                 dim_size=num_graphs)
