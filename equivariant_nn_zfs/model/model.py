@@ -254,11 +254,17 @@ class TensorRegressor(nn.Module):
                                           dtype=torch.bool,
                                           device=total_readout.device)
 
+        active_atoms = torch.zeros(total_readout.size(0),
+                                   dtype=torch.bool,
+                                   device=total_readout.device)
+
+        active_atoms[neighbour_center] = 1
+
         not_neighbour_center[neighbour_center] = False
 
         self.active_atoms = neighbour_center
 
-        baseline = scatter_mean(total_readout[not_neighbour_center], batch_data.batch[not_neighbour_center],
+        baseline = scatter_sum(total_readout[not_neighbour_center], batch_data.batch[not_neighbour_center],
                                 dim=0,
                                 dim_size=num_graphs)
 
@@ -269,4 +275,6 @@ class TensorRegressor(nn.Module):
 
         return {'target': {'pred':final_readout,
                            'base': baseline},
-                'local target': total_readout}
+                'local target': total_readout,
+                'active atoms': active_atoms
+                }

@@ -56,6 +56,7 @@ def evaluating(data: list,
 
     y_pred_tot=[]
     y_pred_local=[]
+    y_pred_local_active=[]
 
     with torch.no_grad():
         for batches in tqdm(loader, desc="Evaluating"):
@@ -65,9 +66,11 @@ def evaluating(data: list,
 
             y_pred_tot.append(y_pred['target']['pred'][:, :].cpu())
             y_pred_local.append(y_pred['local target'][:, :].cpu())
+            y_pred_local_active.append(y_pred['active atoms'][:].cpu())
 
     y_pred_tot = torch.cat(y_pred_tot, dim=0)
     y_pred_local = torch.cat(y_pred_local, dim=0)
+    y_pred_local_active = torch.cat(y_pred_local_active, dim=0)
 
     start_idx=0
     collect_data=[]
@@ -77,8 +80,8 @@ def evaluating(data: list,
         if do_irreps:
             target_l2 = torch.tensor(data[idx].info['target_L2'].reshape(3, 3), device=model.device)
             collect_data.append(target_l2)
-        #data[idx].arrays['eval_local_target'] = y_pred_local[start_idx:end_idx].numpy()
-        data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
+        data[idx].arrays['eval_local_active'] = y_pred_local_active[start_idx:end_idx].numpy()
+        data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(p='fro', dim=1).numpy()**2
         start_idx=end_idx
 
     if do_irreps:

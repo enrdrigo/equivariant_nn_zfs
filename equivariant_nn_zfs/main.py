@@ -141,8 +141,6 @@ if __name__ == "__main__":
         scheduler.load_state_dict(checkpoint['scheduler_state'])
 
         start_epoch = checkpoint['epoch'] + 1
-
-        num_centers = checkpoint['num_centers']
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
                                 pol_cut_num=args.pol_cut_num,
