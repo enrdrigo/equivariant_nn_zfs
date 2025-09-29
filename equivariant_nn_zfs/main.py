@@ -9,6 +9,7 @@ from e3nn.o3 import Irreps
 from equivariant_nn_zfs.train.train import train
 from equivariant_nn_zfs.model.model import TensorRegressor
 from equivariant_nn_zfs.dataset.dataset import MinimalDataset
+# from equivariant_nn_zfs.tools.utils_readout import augment_data
 import ast
 import sys
 
@@ -34,13 +35,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an equivariant neural network for ZFS prediction.")
 
     parser.add_argument('--data_path', type=str, default='train.extxyz', help='Path to input train EXTXYZ file')
-    parser.add_argument('--batch_size', type=int, default=None, help='Batch size for training, default is epochs * #train_set / 100000 + 1')
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training, default is epochs * #train_set / 100000 + 1')
     parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
     parser.add_argument('--nchannels', type=int, default=128, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
     parser.add_argument('--patience', type=int, default=60, help='patience interval for scheduler')
     parser.add_argument('--restart', type=str2bool, default=False, help='restart the training from last iteration')
+    # parser.add_argument('--augment_data', type=str2bool, default=False, help='augment training data')
     parser.add_argument('--lr', type=float, default=1e-3, help='starting learning rate')
     parser.add_argument('--lr_factor', type=float, default=0.75, help='ratio of the final lr')
     parser.add_argument('--min_lr', type=float, default=1e-6, help='ratio of the final lr')
@@ -48,9 +50,9 @@ if __name__ == "__main__":
     parser.add_argument('--data_test_path', type=str, default='test.extxyz', help='Path to input test EXTXYZ file')
     parser.add_argument('--pol_cut_num', type=int, default=5, help='number of cutoff polynomials in the descriptor')
     parser.add_argument('--n_bessel', type=int, default=8, help='number of bessel polynomials in the descriptor')
+    parser.add_argument('--number_of_centers', type=int, default=1, help='number of centers for the selection of active atoms')
+    parser.add_argument('--length_train_segments', type=int, default=None, help='length of training segments')
     parser.add_argument('--max_l_hidden', type=int, default=2, help='max l in hidden irreps')
-    parser.add_argument('--num_segments', type=int, default=None, help='number of segments of train set')
-    parser.add_argument('--len_segment', type=int, default=500, help='length of the segment')
     parser.add_argument('--length_test', type=str, default='', help='length of test set')
     parser.add_argument('--seed', type=int, default=123456789, help='seed')
 
@@ -69,15 +71,15 @@ if __name__ == "__main__":
         for d in data_path_list[1:]:
             db = db + read(d, ':')
 
-    if args.num_segments is None:
+    # if args.augment_data:
+    #     db = augment_data(db)
 
-        if min(len(db) // args.len_segment, args.patience) != 0:
-            args.num_segments = min(len(db) // args.len_segment, args.patience)
-        else: args.num_segments = 1
-
-    if args.batch_size is None:
-        args.batch_size = int(args.epochs / args.num_segments * len(db) / 200000)
-    if args.batch_size==0: args.batch_size=1
+    if args.length_train_segments is not None:
+        len_segment = args.length_train_segments
+        num_segments = len(db)//len_segment
+    else:
+        num_segments = 1
+        len_segment = len(db)
 
     db_test = read(args.data_test_path, ':'+args.length_test)
 
@@ -139,6 +141,8 @@ if __name__ == "__main__":
         scheduler.load_state_dict(checkpoint['scheduler_state'])
 
         start_epoch = checkpoint['epoch'] + 1
+
+        num_centers = checkpoint['num_centers']
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
                                 pol_cut_num=args.pol_cut_num,
@@ -148,7 +152,8 @@ if __name__ == "__main__":
                                 device=device,
                                 irreps_sh=Irreps([(1, (l, int(-2*(l%2-0.5)))) for l in range(args.max_l_hidden+1)]),
                                 mlp=mlp,
-                                irreps_out=Irreps(str(dataset.irreps_out))
+                                irreps_out=Irreps(str(dataset.irreps_out)),
+                                number_of_centers=args.number_of_centers,
                                 )
 
         start_epoch = 0
@@ -171,7 +176,7 @@ if __name__ == "__main__":
 
     console_logger.info(f"{'device':24s}: {device}")
 
-    console_logger.info(f"{'# of parameters updates':24s}: {int(len(train_data)/args.batch_size/args.num_segments*args.epochs)}")
+    console_logger.info(f"{'# of parameters updates':24s}: {int(len(train_data)/args.batch_size/num_segments*args.epochs)}")
 
     model = model.to(device)
 
@@ -184,6 +189,6 @@ if __name__ == "__main__":
           scheduler=scheduler,
           start_epoch=start_epoch,
           batch_size=args.batch_size,
-          num_segments=args.num_segments,
+          num_segments=num_segments,
           seed=args.seed
           )

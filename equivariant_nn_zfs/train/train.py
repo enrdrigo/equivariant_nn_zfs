@@ -232,7 +232,7 @@ def train(model,
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
             'scheduler_state': scheduler.state_dict(),
-            'epoch': epoch,
+            'epoch': epoch
         }, 'checkpoint.pth')
 
         torch.save(model, 'checkpoint_model.pth')

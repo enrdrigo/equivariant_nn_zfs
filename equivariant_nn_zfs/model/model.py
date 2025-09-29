@@ -36,6 +36,7 @@ class TensorRegressor(nn.Module):
                  n_channels: int,
                  irreps_sh: Irreps,
                  irreps_out: Irreps,
+                 number_of_centers: int,
                  device=None,
                  mlp=None
                  ):
@@ -43,6 +44,8 @@ class TensorRegressor(nn.Module):
         self.device = device
 
         self.zlist = zlist
+
+        self.number_of_centers = number_of_centers
 
         self.irreps_out = irreps_out
 
@@ -240,10 +243,9 @@ class TensorRegressor(nn.Module):
 
             total_readout += readout
 
-        total_number_of_centers = 4
 
         neighbour_center = get_centers(atomic=total_readout,
-                                       k=total_number_of_centers,
+                                       k=self.number_of_centers,
                                        batch=batch_data,
                                        edge_index=edge_index_b
                                        )
@@ -259,7 +261,7 @@ class TensorRegressor(nn.Module):
                                 dim_size=num_graphs)
 
 
-        final_readout = scatter_mean(total_readout[neighbour_center], batch_data.batch[neighbour_center],
+        final_readout = scatter_sum(total_readout[neighbour_center], batch_data.batch[neighbour_center],
                                      dim=0,
                                      dim_size=num_graphs)
 

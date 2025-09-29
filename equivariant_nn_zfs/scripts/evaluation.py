@@ -77,8 +77,8 @@ def evaluating(data: list,
         if do_irreps:
             target_l2 = torch.tensor(data[idx].info['target_L2'].reshape(3, 3), device=model.device)
             collect_data.append(target_l2)
-        data[idx].arrays['eval_local_target'] = y_pred_local[start_idx:end_idx].numpy()
-        # data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
+        #data[idx].arrays['eval_local_target'] = y_pred_local[start_idx:end_idx].numpy()
+        data[idx].arrays['eval_local_norm_target']=y_pred_local[start_idx:end_idx].norm(dim=1).numpy()
         start_idx=end_idx
 
     if do_irreps:

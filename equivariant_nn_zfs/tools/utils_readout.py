@@ -71,6 +71,24 @@ def fast_get_centers_batch(top_k_batch_indices,
 
     return unique_neighs
 
+def get_attention(atomic: torch.Tensor,):
+
+    # cart = CartesianTensor('ij=ji')
+    #
+    # atomic_cart=cart.to_cartesian(atomic)
+    #
+    # atomic_cart = atomic_cart - (torch.einsum('jii->j', atomic_cart)*(torch.ones(atomic_cart.shape)*torch.eye(3)/3).T).T
+    #
+    # energies=torch.linalg.eigvalsh(atomic_cart)
+    #
+    # attention=(energies**2).sum(axis=1)
+    #
+    #THE FROBENIUS NORM IS ROTATIONAL INVARIANT: <H_ZFS, H,ZFS>=SUM_I E_I^2 = VAR (E). I AM EXCLUDING THE L=0 TERM, THE TRACE
+
+    attention = atomic[:, 1:].norm(p='fro', dim=1)**2
+
+    return attention
+
 def get_centers(atomic: torch.Tensor,
                 edge_index,
                 k,
@@ -79,7 +97,9 @@ def get_centers(atomic: torch.Tensor,
     # given the top_k indexes I divide them in the respective graphs and look for the centers. I will have K centers per graph.
     num_graphs = batch.ptr.numel() - 1
 
-    top_k = torch.topk(atomic.norm(dim=1), dim=0, k=len(batch.batch))
+    attention=get_attention(atomic)
+
+    top_k = torch.topk(attention, dim=0, k=len(batch.batch))
 
     neighbours_centers = []
 
@@ -93,3 +113,24 @@ def get_centers(atomic: torch.Tensor,
         neighbours_centers.append(neighbours_centers_b)
 
     return torch.cat(neighbours_centers, dim=0)
+
+# def augment_data(data: List[Atoms]):
+#     data_aug=[]
+#     for i in data:
+#         for m in spglib.get_symmetry((i.cell.array, [[0, 0, 0]], [1]))['rotations']:
+#             # if np.linalg.det(m) < 0:
+#             #     continue
+#
+#             j = i.copy()
+#             c = i.cell.array.copy()
+#             r = c @ m @ np.linalg.inv(c)
+#             j.set_positions(wrap_positions(i.positions @ r.T, i.cell))
+#             j.info['target_L2'] = (r @ i.info['target_L2'].reshape(3, 3) @ r.T).flatten()
+#             if np.linalg.norm(np.linalg.eigvalsh(i.info['target_L2'].reshape(3, 3)) - np.linalg.eigvalsh(
+#                     r @ i.info['target_L2'].reshape(3, 3) @ r.T)) > 1e-2:
+#                 print(np.linalg.eigvalsh(i.info['target_L2'].reshape(3, 3)),
+#                       np.linalg.eigvalsh(r @ i.info['target_L2'].reshape(3, 3) @ r.T))
+#                 raise ValueError('MALISSIMO')
+#             data_aug.append(j)
+#
+#     return data_aug
