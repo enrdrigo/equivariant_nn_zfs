@@ -60,7 +60,7 @@ def evaluating(data: list,
 
     with torch.no_grad():
         for batches in tqdm(loader, desc="Evaluating"):
-            batches_data = batches['batches'].to(model.device)
+            batches_data = (batches['batches'][0].to(device), batches['batches'][1].to(device))
 
             y_pred= model(batches_data)  # Forward pass
 

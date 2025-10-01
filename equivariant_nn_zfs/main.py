@@ -40,9 +40,9 @@ if __name__ == "__main__":
     parser.add_argument('--nchannels', type=int, default=128, help='Number of hidden channels in model')
     parser.add_argument('--use_cuda', action='store_true', help='Force use of CUDA if available')
     parser.add_argument('--rcut', type=float, help='cutoff for the ML')
+    parser.add_argument('--rcut_zfs', type=float, help='cutoff for the active atoms')
     parser.add_argument('--patience', type=int, default=60, help='patience interval for scheduler')
     parser.add_argument('--restart', type=str2bool, default=False, help='restart the training from last iteration')
-    # parser.add_argument('--augment_data', type=str2bool, default=False, help='augment training data')
     parser.add_argument('--lr', type=float, default=1e-3, help='starting learning rate')
     parser.add_argument('--lr_factor', type=float, default=0.75, help='ratio of the final lr')
     parser.add_argument('--min_lr', type=float, default=1e-6, help='ratio of the final lr')
@@ -88,13 +88,15 @@ if __name__ == "__main__":
     dataset = MinimalDataset(db,
                              device=device,
                              rule='ij=ji',
-                             radial_cutoff=args.rcut
+                             radial_cutoff=args.rcut,
+                             radial_cutoff_zfs=args.rcut_zfs,
                              )
 
     dataset_test = MinimalDataset(db_test,
                                   device=device,
                                   rule='ij=ji',
-                                  radial_cutoff=args.rcut
+                                  radial_cutoff=args.rcut,
+                                  radial_cutoff_zfs=args.rcut_zfs,
                                   )
 
     total_size = len(dataset)
@@ -143,6 +145,7 @@ if __name__ == "__main__":
         start_epoch = checkpoint['epoch'] + 1
     else:
         model = TensorRegressor(radial_cutoff=args.rcut,
+                                radial_cutoff_zfs=args.rcut_zfs,
                                 pol_cut_num=args.pol_cut_num,
                                 n_bessel=args.n_bessel,
                                 zlist=dataset.z_table,

@@ -12,6 +12,8 @@ from mace.modules.radial import BesselBasis
 from mace.modules.radial import PolynomialCutoff
 from mace.tools.scatter import scatter_sum, scatter_mean
 import logging
+from torch import Tensor
+from typing import List, Tuple
 import sys
 from equivariant_nn_zfs.tools.utils_readout import get_centers
 
@@ -32,6 +34,7 @@ class TensorRegressor(nn.Module):
                  n_bessel: int,
                  zlist: AtomicNumberTable,
                  radial_cutoff: float,
+                 radial_cutoff_zfs: float,
                  pol_cut_num: int,
                  n_channels: int,
                  irreps_sh: Irreps,
@@ -50,6 +53,8 @@ class TensorRegressor(nn.Module):
         self.irreps_out = irreps_out
 
         self.radial_cutoff = radial_cutoff
+
+        self.radial_cutoff_zfs = radial_cutoff_zfs
 
         self.cutoff = PolynomialCutoff(r_max=radial_cutoff, p=pol_cut_num)
 
@@ -208,15 +213,18 @@ class TensorRegressor(nn.Module):
         return length_descriptor, vector_descriptor, node_attributes, edge_index
 
     def forward(self,
-                batch_data: Batch,
+                batch_data_: Tuple[Batch, Batch],
                 ):
 
+        batch_data, batch_data_zfs = batch_data_
 
         num_graphs = batch_data.ptr.numel() - 1
 
         number_nodes = batch_data.num_nodes // num_graphs
 
         length_b, edge_attr_b, node_attr_b, edge_index_b = self.get_graph_edge_attributes(batch_data)
+
+        length_zfs_b, edge_attr_zfs_b, node_attr_zfs_b, edge_index_zfs_b = self.get_graph_edge_attributes(batch_data_zfs)
 
         node_attr_b = node_attr_b.detach().requires_grad_()
 
@@ -244,13 +252,13 @@ class TensorRegressor(nn.Module):
             total_readout += readout
 
 
-        neighbour_center = get_centers(atomic=total_readout,
-                                       k=self.number_of_centers,
-                                       batch=batch_data,
-                                       edge_index=edge_index_b
-                                       )
+        attention_neighbour, neighbour_center = get_centers(atomic=total_readout,
+                                                            k=self.number_of_centers,
+                                                            batch=batch_data,
+                                                            edge_index=edge_index_zfs_b
+                                                            )
 
-        not_neighbour_center = torch.zeros(total_readout.size(0),
+        not_neighbour_center = torch.ones(total_readout.size(0),
                                           dtype=torch.bool,
                                           device=total_readout.device)
 
@@ -262,14 +270,18 @@ class TensorRegressor(nn.Module):
 
         not_neighbour_center[neighbour_center] = False
 
+        self.attention_atoms = attention_neighbour
+
         self.active_atoms = neighbour_center
+
+        self.dormient_atoms = torch.argwhere(not_neighbour_center).squeeze(1)
 
         baseline = scatter_sum(total_readout[not_neighbour_center], batch_data.batch[not_neighbour_center],
                                 dim=0,
                                 dim_size=num_graphs)
 
 
-        final_readout = scatter_sum(total_readout[neighbour_center], batch_data.batch[neighbour_center],
+        final_readout = scatter_sum(total_readout[attention_neighbour], batch_data.batch[attention_neighbour],
                                      dim=0,
                                      dim_size=num_graphs)
 

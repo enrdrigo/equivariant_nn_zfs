@@ -1,49 +1,57 @@
 import torch
 from mace.tools.torch_geometric import Batch
 
-def get_centers_batch(top_k_batch,
-                      edge_index,
-                      k,
-                      device,
-                      ):
+def get_disjoint_centers_batch_with_attention(top_k_batch_indices: torch.tensor,
+                                              attention: torch.tensor,
+                                              edge_index: torch.tensor,
+                                              k: int,
+                                              device: torch.device,
+                                              ):
 
-    edge_set = set()
-    for i, j in zip(edge_index[0], edge_index[1]):
-        edge_set.add((int(i), int(j)))
-        edge_set.add((int(j), int(i)))
+    centers_batch = [top_k_batch_indices[0]]
 
-    center = top_k_batch[0]
-    centers_batch = [center]
+    # Gather neighbors of the first center
+    centers_tensor = torch.tensor(centers_batch, device=device)
 
-    if k==1:
-        neighs = set()
-        for center_ in centers_batch:
-            snd_mask = edge_index[0] == center_
+    # Find all edges whose source is in first center
+    source_nodes = edge_index[0]
 
-            neighs.update(edge_index[1][snd_mask].tolist())
-        return torch.tensor(list(neighs), device=device)
+    center_mask = torch.isin(source_nodes, centers_tensor)
 
-    for next_center in top_k_batch[1:]:
-        if any((next_center, center_) in edge_set for center_ in centers_batch) :
-            continue
-        else:
-            centers_batch.append(next_center)
+    neighs = edge_index[1][center_mask]
 
-        if len(centers_batch) == k:
-            neighs = set()
-            for center_ in centers_batch:
-                snd_mask = edge_index[0] == center_
+    unique_neighs = torch.unique(torch.cat([neighs, centers_tensor], dim=0))
 
-                neighs.update(edge_index[1][snd_mask].tolist())
-            return torch.tensor(list(neighs), device=device)
+    for _ in range(k-1):
 
-    return ValueError('NOPE!')
+        mask = ~torch.isin(top_k_batch_indices, unique_neighs)
+
+        if not mask.any():
+            attention_frac = attention[unique_neighs] / attention[unique_neighs].sum(dim=0)
+
+            return unique_neighs[attention_frac>0.01]
+
+        centers_batch = [top_k_batch_indices[mask][0]]
+
+        # Gather neighbors of the center
+        centers_tensor = torch.tensor(centers_batch, device=device)
+
+        center_mask = torch.isin(source_nodes, centers_tensor)
+
+        neighs = edge_index[1][center_mask]
+
+        unique_neighs = torch.unique(torch.cat([unique_neighs,  neighs, centers_tensor,], dim=0))
+
+    attention_frac=attention[unique_neighs]/attention[unique_neighs].sum(dim=0)
+
+    return unique_neighs[attention_frac>0.001], unique_neighs
 
 def fast_get_centers_batch(top_k_batch_indices,
                            edge_index,
                            k,
                            device,
                            ):
+
     num_nodes = edge_index.max().item() + 1
 
     centers_batch = [top_k_batch_indices[0]]
@@ -102,17 +110,27 @@ def get_centers(atomic: torch.Tensor,
     top_k = torch.topk(attention, dim=0, k=len(batch.batch))
 
     neighbours_centers = []
+    attention_neighbours = []
 
     for b in range(num_graphs):
         top_k_batch_ = top_k.indices[batch.batch[top_k.indices] == b]
 
-        neighbours_centers_b=fast_get_centers_batch(top_k_batch_,
-                                                    k=k,
-                                                    edge_index=edge_index,
-                                                    device=atomic.device)
-        neighbours_centers.append(neighbours_centers_b)
+        # neighbours_centers_b=fast_get_centers_batch(top_k_batch_,
+        #                                             k=k,
+        #                                             edge_index=edge_index,
+        #                                             device=atomic.device)
 
-    return torch.cat(neighbours_centers, dim=0)
+        attention_neighbours_b, neighbours_centers_b = get_disjoint_centers_batch_with_attention(top_k_batch_,
+                                                                                                 attention=attention,
+                                                                                                 k=k,
+                                                                                                 edge_index=edge_index,
+                                                                                                 device=atomic.device)
+
+
+        neighbours_centers.append(neighbours_centers_b)
+        attention_neighbours.append(attention_neighbours_b)
+
+    return torch.cat(attention_neighbours, dim=0), torch.cat(neighbours_centers, dim=0)
 
 # def augment_data(data: List[Atoms]):
 #     data_aug=[]

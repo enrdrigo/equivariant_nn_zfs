@@ -13,11 +13,13 @@ class MinimalDataset(Dataset):
     def __init__(self,
                  structures,
                  radial_cutoff,
+                 radial_cutoff_zfs,
                  device,
                  rule,
                  z_table=None
                  ):
         self.radial_cutoff = radial_cutoff
+        self.radial_cutoff_zfs = radial_cutoff_zfs
         self.structures = structures
         cartesian = CartesianTensor(rule)
         self.irreps_out = cartesian
@@ -50,6 +52,7 @@ class MinimalDataset(Dataset):
 
         # we handle configurations using the Data class
         atomic = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+        atomic_zfs = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff_zfs)
 
         # Convert atomic → torch_geometric.data.Data
         batch = Data(
@@ -60,21 +63,32 @@ class MinimalDataset(Dataset):
             batch=None  # gets set by Batch.from_data_list
         )
 
+        batch_zfs = Data(
+            edge_index=atomic_zfs.edge_index,
+            pos=atomic_zfs.positions,
+            node_attrs=atomic_zfs.node_attrs,
+            shifts=atomic_zfs.shifts,
+            batch=None  # gets set by Batch.from_data_list
+        )
+
         target = self.targets[idx]
 
-        return batch, target
+        return batch, batch_zfs, target
 
 class EvaluationDataset(Dataset):
 
     def __init__(self,
                  structures,
                  model: TensorRegressor,
-                 radial_cutoff=None
+                 radial_cutoff=None,
+                 radial_cutoff_zfs=None,
                  ):
         if radial_cutoff is None:
             self.radial_cutoff = model.radial_cutoff
+            self.radial_cutoff_zfs = model.radial_cutoff_zfs
         else:
             self.radial_cutoff = radial_cutoff
+            self.radial_cutoff_zfs = radial_cutoff_zfs
         self.structures = structures
         self.device = model.device
         self.z_table = model.zlist
@@ -97,6 +111,7 @@ class EvaluationDataset(Dataset):
 
         # we handle configurations using the Data class
         atomic = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff)
+        atomic_zfs = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.radial_cutoff_zfs)
 
         # Convert atomic → torch_geometric.data.Data
 
@@ -105,26 +120,34 @@ class EvaluationDataset(Dataset):
             pos=atomic.positions,
             node_attrs=atomic.node_attrs,
             shifts=atomic.shifts
+        ), Data(
+            edge_index=atomic_zfs.edge_index,
+            pos=atomic_zfs.positions,
+            node_attrs=atomic_zfs.node_attrs,
+            shifts=atomic_zfs.shifts
         )
 
 def collate_fn(batch_):
     """
     Custom collate function to handle variable-length descriptors in the batch.
     """
-    batches, targets_ = zip(*batch_)
+    batches, batches_zfs, targets_ = zip(*batch_)
 
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
     targets_ = torch.stack(targets_)
 
-    return {'batches': Batch.from_data_list(list(batches)), 'targets': targets_}
+
+
+    return {'batches': (Batch.from_data_list(list(batches)), Batch.from_data_list(list(batches_zfs))), 'targets': targets_}
 
 def collate_fn_eval(batch_):
     """
     Custom collate function to handle variable-length descriptors in the batch.
     """
+    batches, batches_zfs= zip(*batch_)
 
     # We can't stack the descriptors directly because they have different sizes
     # Instead, we keep them in a list
 
-    return {'batches': Batch.from_data_list(list(batch_))}
+    return {'batches': (Batch.from_data_list(list(batches)),  Batch.from_data_list(list(batches_zfs)))}

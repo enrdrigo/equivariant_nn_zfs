@@ -58,7 +58,7 @@ def validate(epoch, model, loader, device):
     with torch.no_grad():
         for batches in loader:
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = batches['batches'].to(device)
+            batch_data = (batches['batches'][0].to(device), batches['batches'][1].to(device))
 
             y_true = batches['targets'].to(device)
 
@@ -87,12 +87,16 @@ def test(epoch, model, loader, device):
 
     average_active_atoms=[]
 
+    average_attention_atoms = []
+
+    average_dormient_atoms = []
+
     total_loss = 0
 
     with torch.no_grad():
         for batches in loader:
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = batches['batches'].to(device)
+            batch_data = (batches['batches'][0].to(device), batches['batches'][1].to(device))
 
             y_true = batches['targets'].to(device)
 
@@ -107,12 +111,22 @@ def test(epoch, model, loader, device):
             total_loss += loss.item()
 
             average_active_atoms.append(len(model.active_atoms))
+            average_attention_atoms.append(len(model.attention_atoms))
+            average_dormient_atoms.append(len(model.dormient_atoms))
 
     error_batches = torch.tensor(error_batches)
     avg_loss = total_loss / len(loader)
 
     console_logger.info(f"TEST       Loss =                    {avg_loss:.4f}")
-    console_logger.info(f"average number of active atoms in test {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+    console_logger.info(
+        f"average number of active atoms in test {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+
+    console_logger.info(
+        f"average number of attention atoms in test {torch.tensor(average_attention_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+
+    console_logger.info(
+        f"average number of dormient atoms in test {torch.tensor(average_dormient_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+
     console_logger.info("TEST  MEAN Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.mean(dim=0)))
     console_logger.info("TEST  STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
     file_test_logger.info(f"{epoch:.3e}  "+f"{avg_loss:.4f}")
@@ -172,6 +186,10 @@ def train(model: TensorRegressor,
 
         average_active_atoms=[]
 
+        average_attention_atoms=[]
+
+        average_dormient_atoms=[]
+
         total_loss = 0
 
         # Cycle through segments: 0,1,2,0,1,2,...
@@ -198,7 +216,7 @@ def train(model: TensorRegressor,
             optimizer.zero_grad()  # Zeroing gradients
 
             # PREPARE THE DATA ON THE CORRECT DEVICE
-            batch_data = batches['batches'].to(device)
+            batch_data = (batches['batches'][0].to(device), batches['batches'][1].to(device))
 
             y_true = batches['targets'].to(device)
 
@@ -216,7 +234,9 @@ def train(model: TensorRegressor,
 
             total_loss += loss.item()
 
-            average_active_atoms.append(len(model.active_atoms))
+            average_active_atoms.append(len(model.active_atoms)/batch_size)
+            average_attention_atoms.append(len(model.attention_atoms) / batch_size)
+            average_dormient_atoms.append(len(model.dormient_atoms) / batch_size)
 
         for param_group in optimizer.param_groups:
             console_logger.info(f"LR: {param_group['lr']}")
@@ -227,7 +247,14 @@ def train(model: TensorRegressor,
 
         console_logger.info("TRAIN STD  Loss values:   " + ", ".join(f"{err:.3e}" for err in error_batches.std(dim=0)))
 
-        console_logger.info(f"average number of active atoms in train {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+        console_logger.info(
+            f"average number of active atoms in train {torch.tensor(average_active_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+
+        console_logger.info(
+            f"average number of attention atoms in train {torch.tensor(average_attention_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
+
+        console_logger.info(
+            f"average number of dormient atoms in train {torch.tensor(average_dormient_atoms, dtype=torch.float32).mean(dim=0):.4f} ")
 
         console_logger.info(f"TRAIN      Loss =                    {total_loss / len(loader):.4f} ")
 
