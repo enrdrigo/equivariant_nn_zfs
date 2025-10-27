@@ -56,7 +56,7 @@ class TensorRegressor(nn.Module):
 
         self.radial_cutoff_zfs = radial_cutoff_zfs
 
-        self.args = {'nbessel': n_bessel,
+        self.args = {'n_bessel': n_bessel,
                      'zlist': zlist,
                      'radial_cutoff': radial_cutoff,
                      'radial_cutoff_zfs': radial_cutoff_zfs,
