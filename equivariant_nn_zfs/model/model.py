@@ -261,15 +261,14 @@ class TensorRegressor(nn.Module):
 
             readout = self.readout[i](node_features)
 
-            #reduce mean: I want a quantity that is intensive!
-
             total_readout += readout
 
 
         attention_neighbour, neighbour_center = get_centers(atomic=total_readout,
                                                             k=self.number_of_centers,
                                                             batch=batch_data,
-                                                            edge_index=edge_index_zfs_b
+                                                            edge_index=edge_index_zfs_b,
+                                                            thr=1e-4
                                                             )
 
         not_neighbour_center = torch.ones(total_readout.size(0),

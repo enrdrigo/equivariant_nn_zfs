@@ -6,6 +6,7 @@ def get_disjoint_centers_batch_with_attention(top_k_batch_indices: torch.tensor,
                                               edge_index: torch.tensor,
                                               k: int,
                                               device: torch.device,
+                                              thr: float,
                                               ):
 
     centers_batch = [top_k_batch_indices[0]]
@@ -29,7 +30,7 @@ def get_disjoint_centers_batch_with_attention(top_k_batch_indices: torch.tensor,
         if not mask.any():
             attention_frac = attention[unique_neighs] / attention[unique_neighs].sum(dim=0)
 
-            return unique_neighs[attention_frac>0.01]
+            return unique_neighs[attention_frac>thr]
 
         centers_batch = [top_k_batch_indices[mask][0]]
 
@@ -44,7 +45,7 @@ def get_disjoint_centers_batch_with_attention(top_k_batch_indices: torch.tensor,
 
     attention_frac=attention[unique_neighs]/attention[unique_neighs].sum(dim=0)
 
-    return unique_neighs[attention_frac>0.001], unique_neighs
+    return unique_neighs[attention_frac>thr], unique_neighs
 
 def fast_get_centers_batch(top_k_batch_indices,
                            edge_index,
@@ -100,7 +101,9 @@ def get_attention(atomic: torch.Tensor,):
 def get_centers(atomic: torch.Tensor,
                 edge_index,
                 k,
-                batch: Batch):
+                batch: Batch,
+                thr: float,
+                ):
 
     # given the top_k indexes I divide them in the respective graphs and look for the centers. I will have K centers per graph.
     num_graphs = batch.ptr.numel() - 1
@@ -124,7 +127,9 @@ def get_centers(atomic: torch.Tensor,
                                                                                                  attention=attention,
                                                                                                  k=k,
                                                                                                  edge_index=edge_index,
-                                                                                                 device=atomic.device)
+                                                                                                 device=atomic.device,
+                                                                                                 thr=thr,
+                                                                                                 )
 
 
         neighbours_centers.append(neighbours_centers_b)

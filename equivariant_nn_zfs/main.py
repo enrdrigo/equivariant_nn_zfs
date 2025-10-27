@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     total_size = len(dataset)
 
-    validation_ratio = 0.05
+    validation_ratio = 0.1
 
     # Calculate split sizes
 
