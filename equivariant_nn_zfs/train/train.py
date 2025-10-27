@@ -269,6 +269,7 @@ def train(model: TensorRegressor,
         scheduler.step(val_loss)
 
         torch.save({
+            'args': model.args,
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
             'scheduler_state': scheduler.state_dict(),
