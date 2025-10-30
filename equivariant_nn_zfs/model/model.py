@@ -161,7 +161,8 @@ class TensorRegressor(nn.Module):
 
     def weighted_mse_loss(self,
                           pred,
-                          target
+                          target,
+                          lambda_=5e-7
                           ):
 
         device = pred['pred'].device  # Get the device of prediction
@@ -171,7 +172,10 @@ class TensorRegressor(nn.Module):
         pred_flat = pred['pred'].view(pred['pred'].size(0), -1)
         base_flat = pred['base'].view(pred['base'].size(0), -1)
         target_flat = target.view(target.size(0), -1)
-        loss = ((pred_flat - target_flat) ** 2).mean(axis=0) + (base_flat**2).mean(axis=0)
+        reg=0
+        for params in self.parameters(recurse=True):
+            reg+=(params.flatten()**2).sum()
+        loss = ((pred_flat - target_flat) ** 2).mean(axis=0) + (base_flat**2).mean(axis=0) + reg * lambda_
         return loss.mean()
 
     def mse_components(self,
@@ -268,7 +272,7 @@ class TensorRegressor(nn.Module):
                                                             k=self.number_of_centers,
                                                             batch=batch_data,
                                                             edge_index=edge_index_zfs_b,
-                                                            thr=1e-4
+                                                            thr=-1
                                                             )
 
         not_neighbour_center = torch.ones(total_readout.size(0),
