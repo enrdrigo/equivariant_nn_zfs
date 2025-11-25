@@ -18,9 +18,6 @@ def evaluating(data: list,
                path_to_evaluate=None,
                ):
 
-    if path_to_evaluate is None:
-        path_to_evaluate = 'evaluate_dataset.extxyz'
-
     if irreps_out is None:
         try:
             irreps_out = model.irreps_out
@@ -90,6 +87,7 @@ def evaluating(data: list,
         for idx, data_ in enumerate(data):
             data[idx].info['true_target'] = collect_data[idx]
 
-    write(path_to_evaluate,data)
+    if path_to_evaluate is not None:
+        write(path_to_evaluate,data)
 
     return
