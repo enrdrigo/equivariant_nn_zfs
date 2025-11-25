@@ -81,7 +81,13 @@ if __name__ == "__main__":
         num_segments = 1
         len_segment = len(db)
 
-    db_test = read(args.data_test_path, ':'+args.length_test)
+    data_path_list = args.data_test_path.split(':')
+
+    db_test = read(data_path_list[0], ':')
+
+    if len(data_path_list) > 1:
+        for d in data_path_list[1:]:
+            db_test = db_test + read(d, ':')
 
     device = torch.device('cuda' if args.use_cuda and torch.cuda.is_available() else 'cpu')
 
