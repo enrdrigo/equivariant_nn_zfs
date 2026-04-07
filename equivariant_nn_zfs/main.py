@@ -71,9 +71,6 @@ if __name__ == "__main__":
         for d in data_path_list[1:]:
             db = db + read(d, ':')
 
-    # if args.augment_data:
-    #     db = augment_data(db)
-
     if args.length_train_segments is not None:
         len_segment = args.length_train_segments
         num_segments = len(db)//len_segment
